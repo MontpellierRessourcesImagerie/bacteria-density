@@ -1,5 +1,7 @@
 # Napari bacteria density
 
+<img width="3800" height="2122" alt="nbd" src="https://github.com/user-attachments/assets/e748fbff-72c4-4c90-8026-5f1558e4d743" />
+
 ## Install
 
 - Make sure that you installed [Git](https://git-scm.com/downloads) on your system.
