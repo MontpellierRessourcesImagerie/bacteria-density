@@ -1,0 +1,2 @@
+[napari.manifest]
+napari-bacteria-density = bacteria_density:napari.yaml

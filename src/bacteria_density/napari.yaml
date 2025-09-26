@@ -1,0 +1,15 @@
+name: napari-bacteria-density
+display_name: Bacteria Density Tools
+# use 'hidden' to remove plugin from napari hub search results
+visibility: public
+# see https://napari.org/stable/plugins/technical_references/manifest.html#fields for valid categories
+# categories: []
+contributions:
+  commands:
+    - id: napari-bacteria-density.make_analysis_widget
+      python_name: bacteria_density:BacteriaDensityWidget
+      title: Open the bacteria density toolset
+
+  widgets:
+    - command: napari-bacteria-density.make_analysis_widget
+      display_name: Density vs. distance
