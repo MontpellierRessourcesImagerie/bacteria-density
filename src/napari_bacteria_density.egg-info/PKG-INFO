@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: napari-bacteria-density
-Version: 0.0.2.dev1+nogit.gb6ae7e271
+Version: 0.0.2.dev3+nogit.g9f691d8dd.d20250926
 Summary: A Napari plugin to measure the density of bacteria vs the distance within tubular organs
 Author: Clément H. Benedetti
 Author-email: clement.benedetti@mri.cnrs.fr

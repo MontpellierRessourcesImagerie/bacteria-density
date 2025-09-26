@@ -1,79 +1,57 @@
-# napari-bacteria-density
+# Napari bacteria density
 
-[![License MIT](https://img.shields.io/pypi/l/napari-bacteria-density.svg?color=green)](https://github.com/MontpellierRessourcesImagerie/napari-bacteria-density/raw/main/LICENSE)
-[![PyPI](https://img.shields.io/pypi/v/napari-bacteria-density.svg?color=green)](https://pypi.org/project/napari-bacteria-density)
-[![Python Version](https://img.shields.io/pypi/pyversions/napari-bacteria-density.svg?color=green)](https://python.org)
-[![tests](https://github.com/MontpellierRessourcesImagerie/napari-bacteria-density/workflows/tests/badge.svg)](https://github.com/MontpellierRessourcesImagerie/napari-bacteria-density/actions)
-[![codecov](https://codecov.io/gh/MontpellierRessourcesImagerie/napari-bacteria-density/branch/main/graph/badge.svg)](https://codecov.io/gh/MontpellierRessourcesImagerie/napari-bacteria-density)
-[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-bacteria-density)](https://napari-hub.org/plugins/napari-bacteria-density)
-[![npe2](https://img.shields.io/badge/plugin-npe2-blue?link=https://napari.org/stable/plugins/index.html)](https://napari.org/stable/plugins/index.html)
-[![Copier](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/copier-org/copier/master/img/badge/badge-grayscale-inverted-border-purple.json)](https://github.com/copier-org/copier)
+## Install
 
-A Napari plugin to measure the density of bacteria vs the distance within tubular organs
+- Make sure that you installed [Git](https://git-scm.com/downloads) on your system.
+- Make sure that you installed a Python environments manager (like [Miniconda](https://repo.anaconda.com/miniconda/)).
+- Open a terminal and create a new environment using the command `conda create -n bacteria-density -y python=3.10`.
+- Activate the newly created environment using `conda activate bacteria-density`.
+- Install the development version of the plugin using `pip install git+https://github.com/MontpellierRessourcesImagerie/bacteria-density.git`.
+- If you want to use it through a GUI, install Napari alongside it with `pip install napari[all]`.
+- To calibrate your images, you will need to install the calibration tool using `pip install set-calibration`.
+- If your images are not TIFF, you will need to install ImageJ's bridge using `pip install napari-imagej`.
 
-----------------------------------
+## Usage
 
-This [napari] plugin was generated with [copier] using the [napari-plugin-template].
+- Open a new terminal and activate the environment containing Napari using `conda activate bacteria-density`.
+- Launch Napari with the command `napari`.
+- In the top-bar, within the "Plugins" menu, you should find `ImageJ2`, `Scale tool` & `Density vs. distance`.
+- Start by using `ImageJ2` to open your image and import it in Napari. In the left column, you should now see one layer per channel. You can rename them as you wish.
+- You can now close the `ImageJ2` panel.
+- You should now open `Scale tool` to provide the physical size of voxels. Don't forget that in Napari, the order is ZYX instead of XYZ.
+- Once you're done providing the scale, you can close the `Scale tool` panel.
+- You can now open the `Density vs. distance` panel.
 
-<!--
-Don't miss the full getting started guide to set up your new package:
-https://github.com/napari/napari-plugin-template#getting-started
+## Process the image
 
-and review the napari docs for plugin developers:
-https://napari.org/stable/plugins/index.html
--->
+#### 1. Segmentation
 
-## Installation
+- In the dropdown menu, select the layer corresponding to the nuclei.
 
-You can install `napari-bacteria-density` via [pip]:
+#### 2. Measures
 
-```
-pip install napari-bacteria-density
-```
+- For each channel in which you want to make intensity measurements, indicate the layer (in the dropdown menu) and provide a name for what it contains.
 
-If napari is not already installed, you can install `napari-bacteria-density` with napari and Qt via:
+#### 3. ROIs
 
-```
-pip install "napari-bacteria-density[all]"
-```
+- Above the layers list, add a new "Shape layer".
+- Add rectangles for each region that you would like to process.
+- Change the "edge color" to represent the different filaments (one color == one filament).
+- Add a new "Points layer".
+- For each filament (one box per color), add a point approximately where the filament starts.
+- In the dropdown menus, provide the new shape and point layers.
 
+#### 4. Settings
 
-To install latest development version :
+- Using the "Set output folder", provide the path to an empty directory.
+- Select the binning length using the input below (binning of measures along the skeleton).
+- Select the list of measurements that you would like to process.
 
-```
-pip install git+https://github.com/MontpellierRessourcesImagerie/napari-bacteria-density.git
-```
+#### 5. Workflow
 
+- **Chunk images:** Will export a copy of each selected area in the working directory.
+- **Skeletonize:** Will create a mask and a skeleton of the corresponding branch. An outline of the mask will be displayed.
+- **Make medial path:** Will process the path over the organ and assemble the fragments.
+- **Measure:** Will perform the measures and export the CSV.
+- **Create Plots:** Export the plots as PNG with a dashed-line between segments.
 
-
-## Contributing
-
-Contributions are very welcome. Tests can be run with [tox], please ensure
-the coverage at least stays the same before you submit a pull request.
-
-## License
-
-Distributed under the terms of the [MIT] license,
-"napari-bacteria-density" is free and open source software
-
-## Issues
-
-If you encounter any problems, please [file an issue] along with a detailed description.
-
-[napari]: https://github.com/napari/napari
-[copier]: https://copier.readthedocs.io/en/stable/
-[@napari]: https://github.com/napari
-[MIT]: http://opensource.org/licenses/MIT
-[BSD-3]: http://opensource.org/licenses/BSD-3-Clause
-[GNU GPL v3.0]: http://www.gnu.org/licenses/gpl-3.0.txt
-[GNU LGPL v3.0]: http://www.gnu.org/licenses/lgpl-3.0.txt
-[Apache Software License 2.0]: http://www.apache.org/licenses/LICENSE-2.0
-[Mozilla Public License 2.0]: https://www.mozilla.org/media/MPL/2.0/index.txt
-[napari-plugin-template]: https://github.com/napari/napari-plugin-template
-
-[file an issue]: https://github.com/MontpellierRessourcesImagerie/napari-bacteria-density/issues
-
-[napari]: https://github.com/napari/napari
-[tox]: https://tox.readthedocs.io/en/latest/
-[pip]: https://pypi.org/project/pip/
-[PyPI]: https://pypi.org/
