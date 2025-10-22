@@ -5,6 +5,7 @@ import os
 import json
 
 import pandas as pd
+from shapely.geometry import Point
 from scipy.ndimage import gaussian_filter
 from skimage.morphology import (binary_closing, ball,
                                 binary_opening, skeletonize)
@@ -195,8 +196,9 @@ class BacteriaDensityWorker(object):
         for id_str, data in self.chunks.items():
             as_json[id_str] = {
                 'start' : data['start'].tolist() if data['start'] is not None else None,
-                'bboxes': [list(bbox) for bbox in data['bboxes']],
-                'ranks' : {",".join(map(str, bbox)): rank for bbox, rank in data['ranks'].items()}
+                'polygons': [[(0, y, x) for x, y in poly.exterior.coords] for poly in data['polygons']],
+                'ranks' : {",".join(map(str, bbox)): rank for bbox, rank in data['ranks'].items()},
+                # 'bboxes' : [list(bbox) for bbox in data['bboxes']]
             }
         return as_json
 
@@ -205,8 +207,9 @@ class BacteriaDensityWorker(object):
         for id_str, data in as_json.items():
             chunks[id_str] = {
                 'start' : np.array(data['start']) if data['start'] is not None else None,
-                'bboxes': [tuple(bbox) for bbox in data['bboxes']],
-                'ranks' : {tuple(map(int, bbox.split(","))): rank for bbox, rank in data['ranks'].items()}
+                'polygons': [utils.as_polygon(coords) for coords in data['polygons']],
+                'ranks' : {tuple(map(int, bbox.split(","))): rank for bbox, rank in data['ranks'].items()},
+                # 'bboxes' : [tuple(map(int, bbox.split(","))) for bbox in data['bboxes']]
             }
         return chunks
 
@@ -228,10 +231,10 @@ class BacteriaDensityWorker(object):
         with open(regions_path, "r") as f:
             chunks = json.load(f)
             chunks = self.chunks_from_json(chunks)
-        for id_str, data in chunks.items(): # recovering the bboxes
-            for bbox in data['bboxes']:
-                bbox = tuple(bbox)
-                self.add_region(id_str, bbox)
+        for id_str, data in chunks.items(): # recovering the polygons
+            for poly in data['polygons']:
+                poly = np.array(poly)
+                self.add_region(id_str, poly)
         for id_str, data in chunks.items(): # recovering starting points
             start = data['start']
             if start is not None:
@@ -243,11 +246,12 @@ class BacteriaDensityWorker(object):
                     self.chunks[id_str]['ranks'][bbox] = rank
         return True
 
-    def add_region(self, id_str, bbox):
+    def add_region(self, id_str, coordinates):
         if self.segmentation_ch is None:
             raise ValueError("Segmentation channel not set")
         _, h, w = self.segmentation_ch.shape
-        (ymin, xmin, ymax, xmax) = bbox
+        poly = utils.as_polygon(coordinates)
+        (xmin, ymin, xmax, ymax) = poly.bounds
         ymin = int(round(ymin))
         xmin = int(round(xmin))
         ymax = int(round(ymax))
@@ -257,11 +261,13 @@ class BacteriaDensityWorker(object):
         if ymin >= ymax or xmin >= xmax:
             raise ValueError("Invalid bounding box coordinates")
         region_data = self.chunks.get(id_str, {
-            'start' : None,
-            'bboxes': [],
-            'ranks' : {}
+            'start'   : None,
+            'polygons': [],
+            'bboxes'  : [],
+            'ranks'   : {}
         })
-        bbox = (ymin, xmin, ymax, xmax)
+        bbox = (xmin, ymin, xmax, ymax)
+        region_data['polygons'].append(poly)
         region_data['bboxes'].append(bbox)
         region_data['ranks'][bbox] = -1
         self.chunks[id_str] = region_data
@@ -272,14 +278,14 @@ class BacteriaDensityWorker(object):
         if self.segmentation_ch is None:
             return -1
         _, h, w = self.segmentation_ch.shape
-        (ymin, xmin, ymax, xmax) = bbox
+        (xmin, ymin, xmax, ymax) = bbox
         ymin = int(round(ymin))
         xmin = int(round(xmin))
         ymax = int(round(ymax))
         xmax = int(round(xmax))
         ymin, xmin = max(0, ymin), max(0, xmin)
         ymax, xmax = min(h, ymax), min(w, xmax)
-        bbox = (ymin, xmin, ymax, xmax)
+        bbox = (xmin, ymin, xmax, ymax)
         if id_str not in self.chunks:
             raise ValueError(f"Region ID {id_str} not found.")
         if bbox not in self.chunks[id_str]['ranks']:
@@ -289,10 +295,12 @@ class BacteriaDensityWorker(object):
     def set_starting_hint(self, id_str, start):
         if id_str not in self.chunks:
             raise ValueError(f"Region ID {id_str} not found. Add region before setting starting hint.")
-        bboxes = self.chunks[id_str]['bboxes']
-        in_box = [r for r, (ymin, xmin, ymax, xmax) in enumerate(bboxes) if (ymin <= start[1] < ymax and xmin <= start[2] < xmax)]
-        if len(in_box) != 1:
-            raise ValueError("Starting hint must be within one of the region's bounding boxes.")
+        polygons = self.chunks[id_str]['polygons']
+        px = start[-1]
+        py = start[-2]
+        in_poly = [r for r, poly in enumerate(polygons) if poly.contains(Point(px, py))]
+        if len(in_poly) != 1:
+            raise ValueError("Starting hint must be within one of the region's polygons.")
         self.chunks[id_str]['start'] = np.array(start)
         self.save_regions()
         self.info(f"Starting hint for region '{id_str}' set to {self.chunks[id_str]['start']}.")
@@ -305,15 +313,15 @@ class BacteriaDensityWorker(object):
         for id_str, data in self.chunks.items():
             main_folder = os.path.join(self.working_dir, id_str)
             utils.reset_folder(main_folder)
-            for bbox in data['bboxes']:
-                (ymin, xmin, ymax, xmax) = bbox
-                region_folder = os.path.join(main_folder, utils.bbox_to_str(bbox))
+            for poly, bbox in zip(data['polygons'], data['bboxes']):
+                (xmin, ymin, xmax, ymax) = bbox
+                region_folder = os.path.join(main_folder, utils.bbox_to_str((xmin, ymin, xmax, ymax)))
                 utils.reset_folder(region_folder)
-                seg_crop = self.segmentation_ch[:, ymin:ymax, xmin:xmax]
+                seg_crop = utils.make_crop(self.segmentation_ch, poly, bbox)
                 tiff.imwrite(os.path.join(region_folder, "segmentation_ch.tif"), seg_crop)
                 self.info(f"Exported segmentation channel for region '{id_str}' bbox {bbox}")
                 for ch_name, ch_data in self.measurement_ch.items():
-                    meas_crop = ch_data[:, ymin:ymax, xmin:xmax]
+                    meas_crop = utils.make_crop(ch_data, poly, bbox)
                     tiff.imwrite(os.path.join(region_folder, f"{ch_name}.tif"), meas_crop)
                     self.info(f"Exported measurement channel '{ch_name}' for region '{id_str}' bbox {bbox}")
     
@@ -432,7 +440,7 @@ class BacteriaDensityWorker(object):
                 if med_path is None or len(med_path) == 0:
                     self.error(f"Could not find a path in bbox {bbox} for region '{id_str}'.")
                     continue
-                hint = np.array([med_path[-1][0], med_path[-1][1] + bbox[0], med_path[-1][2] + bbox[1]]) # in global coordinates
+                hint = np.array([med_path[-1][0], med_path[-1][1] + bbox[1], med_path[-1][2] + bbox[0]]) # in global coordinates
                 region_folder = os.path.join(main_folder, utils.bbox_to_str(bbox))
                 np.save(os.path.join(region_folder, "medial_path.npy"), med_path)
                 self.save_regions()
@@ -477,7 +485,9 @@ class BacteriaDensityWorker(object):
         
         for when in measures.get_execution_order():
             measure_fx = measures.get_metrics_by_order(when, self.to_process)
-            for ch_name, ch_data in self.measurement_ch.items():
+            for ch_name in self.measurement_ch.keys():
+                ch_path = os.path.join(region_folder, f"{ch_name}.tif")
+                ch_data = tiff.imread(ch_path)
                 for metric, func in measure_fx.items():
                     if when == 'U': # Unique for the patch
                         if metric in results_table:
@@ -572,6 +582,7 @@ class BacteriaDensityWorker(object):
         if self.working_dir is None:
             raise ValueError("Working directory not set")
         for id_str, data in self.chunks.items():
+            self.info(f"Starting measures for region: {id_str}")
             main_folder = os.path.join(self.working_dir, id_str)
             for bbox in data['bboxes']:
                 region_folder = os.path.join(main_folder, utils.bbox_to_str(bbox))
@@ -670,28 +681,232 @@ def launch_analysis_workflow():
 
     worker.set_calibration((1.52, 0.325, 0.325), "µm")
 
-    worker.add_region("id_001", (0, 0, 699, 1203))
+    worker.add_region("id_001", 
+        np.array([
+            [   8.      ,  984.3847  ,  -24.18498 ],
+            [   8.      , 1475.1365  ,  -29.793571],
+            [   8.      , 1727.5231  ,  320.74338 ],
+            [   8.      , 2361.294   ,  317.9391  ],
+            [   8.      , 2832.4155  ,  472.17535 ],
+            [   8.      , 2905.3271  , 1080.7075  ],
+            [   8.      , 2386.5325  , 1686.4353  ],
+            [   8.      , 1346.1388  , 1753.7384  ],
+            [   8.      ,  922.6902  , 1770.5642  ],
+            [   8.      ,  474.0029  , 1686.4353  ],
+            [   8.      ,  782.4754  , 1321.877   ],
+            [   8.      , 1298.4658  , 1215.3137  ],
+            [   8.      , 1850.9121  , 1091.9247  ],
+            [   8.      , 2055.6257  ,  791.86505 ],
+            [   8.      , 1340.5303  ,  783.45215 ],
+            [   8.      , 1006.8191  ,  200.15868 ]
+        ])
+    )
 
-    worker.add_region("id_002", (996, 3, 2886, 858))
-    worker.add_region("id_002", (444, 867, 2853, 1806))
+    worker.add_region("id_002", 
+        np.array([
+            [   8.       ,  485.2201   , 1807.02     ],
+            [   8.       ,  510.45874  , 1792.9985   ],
+            [   8.       ,  538.5017   , 1787.39     ],
+            [   8.       ,  574.9575   , 1784.5857   ],
+            [   8.       ,  614.21765  , 1784.5857   ],
+            [   8.       ,  656.2821   , 1781.7814   ],
+            [   8.       ,  726.3895   , 1781.7814   ],
+            [   8.       ,  785.2797   , 1787.39     ],
+            [   8.       ,  818.9313   , 1787.39     ],
+            [   8.       ,  852.5828   , 1790.1943   ],
+            [   8.       ,  953.5375   , 1807.02     ],
+            [   8.       , 1037.6663   , 1832.2587   ],
+            [   8.       , 1110.578    , 1871.5189   ],
+            [   8.       , 1147.0338   , 1899.5618   ],
+            [   8.       , 1177.8811   , 1916.3876   ],
+            [   8.       , 1208.7284   , 1938.822    ],
+            [   8.       , 1245.1842   , 1961.2563   ],
+            [   8.       , 1276.0315   , 1989.2993   ],
+            [   8.       , 1301.2701   , 2014.538    ],
+            [   8.       , 1320.9001   , 2039.7766   ],
+            [   8.       , 1351.7474   , 2076.2324   ],
+            [   8.       , 1376.9861   , 2121.101    ],
+            [   8.       , 1399.4204   , 2177.187    ],
+            [   8.       , 1407.8334   , 2205.23     ],
+            [   8.       , 1413.4419   , 2236.0774   ],
+            [   8.       , 1416.2462   , 2264.1204   ],
+            [   8.       , 1416.2462   , 2510.8982   ],
+            [   8.       , 1421.8549   , 2552.9626   ],
+            [   8.       , 1430.2677   , 2595.027    ],
+            [   8.       , 1441.4849   , 2637.0916   ],
+            [   8.       , 1461.115    , 2690.3733   ],
+            [   8.       , 1477.9407   , 2743.6548   ],
+            [   8.       , 1508.788    , 2808.1536   ],
+            [   8.       , 1542.4396   , 2875.4568   ],
+            [   8.       , 1578.8954   , 2942.7598   ],
+            [   8.       , 1609.7427   , 3015.6714   ],
+            [   8.       , 1646.1985   , 3085.7788   ],
+            [   8.       , 1682.6543   , 3144.6692   ],
+            [   8.       , 1716.3059   , 3195.1465   ],
+            [   8.       , 1780.8047   , 3284.8838   ],
+            [   8.       , 1825.6733   , 3357.7957   ],
+            [   8.       , 1850.9121   , 3402.6643   ],
+            [   8.       , 1867.7378   , 3441.9243   ],
+            [   8.       , 1887.3679   , 3481.1846   ],
+            [   8.       , 1901.3894   , 3517.6404   ],
+            [   8.       , 1926.628    , 3573.7263   ],
+            [   8.       , 1943.4539   , 3618.595    ],
+            [   8.       , 1960.2795   , 3669.0723   ],
+            [   8.       , 1974.301    , 3722.354    ],
+            [   8.       , 1985.5182   , 3792.4614   ],
+            [   8.       , 1991.1268   , 3837.33     ],
+            [   8.       , 1999.5397   , 3879.3945   ],
+            [   8.       , 2005.1483   , 3927.0676   ],
+            [   8.       , 2007.9526   , 3974.7405   ],
+            [   8.       , 2007.9526   , 4095.3252   ],
+            [   8.       , 1996.7355   , 4142.9985   ],
+            [   8.       , 1977.1053   , 4210.3013   ],
+            [   8.       , 1963.0839   , 4243.953    ],
+            [   8.       , 1951.8667   , 4274.8003   ],
+            [   8.       , 1932.2366   , 4314.0605   ],
+            [   8.       , 1915.4109   , 4342.1035   ],
+            [   8.       , 1901.3894   , 4367.342    ],
+            [   8.       , 1878.955    , 4400.9937   ],
+            [   8.       , 1848.1078   , 4443.058    ],
+            [   8.       , 1825.6733   , 4468.2964   ],
+            [   8.       , 1797.6305   , 4504.7524   ],
+            [   8.       , 1766.7832   , 4538.404    ],
+            [   8.       , 1688.263    , 4611.316    ],
+            [   8.       , 1665.8285   , 4633.75     ],
+            [   8.       , 1595.7212   , 4689.836    ],
+            [   8.       , 1567.6782   , 4706.6616   ],
+            [   8.       , 1545.2438   , 4726.292    ],
+            [   8.       , 1497.5708   , 4757.139    ],
+            [   8.       , 1455.5063   , 4779.573    ],
+            [   8.       , 1368.5732   , 4832.855    ],
+            [   8.       , 1323.7045   , 4855.2896   ],
+            [   8.       , 1270.4229   , 4877.7236   ],
+            [   8.       , 1233.967    , 4894.5493   ],
+            [   8.       , 1169.4683   , 4919.788    ],
+            [   8.       , 1121.7952   , 4936.614    ],
+            [   8.       , 1085.3394   , 4947.831    ],
+            [   8.       , 1040.4706   , 4959.0483   ],
+            [   8.       , 1001.21045  , 4967.4614   ],
+            [   8.       ,  959.14606  , 4978.678    ],
+            [   8.       ,  922.6902   , 4989.8955   ],
+            [   8.       ,  880.6258   , 4998.3086   ],
+            [   8.       ,  816.12695  , 5017.9385   ],
+            [   8.       ,  737.6067   , 5043.1772   ],
+            [   8.       ,  628.23914  , 5079.6333   ],
+            [   8.       ,  549.7189   , 5102.0674   ],
+            [   8.       ,  474.0029   , 5127.306    ],
+            [   8.       ,  375.85254  , 5158.1533   ],
+            [   8.       ,  345.0053   , 5169.3706   ],
+            [   8.       ,  314.15805  , 5177.783    ],
+            [   8.       ,  252.46355  , 5189.0005   ],
+            [   8.       ,  193.57333  , 5194.6094   ],
+            [   8.       ,   44.945667 , 5194.6094   ],
+            [   8.       ,   16.90271  , 5189.0005   ],
+            [   8.       ,  -19.553133 , 5169.3706   ],
+            [   8.       ,  -50.400383 , 5132.9146   ],
+            [   8.       ,  -67.22616  , 5102.0674   ],
+            [   8.       , -103.682    , 5015.1343   ],
+            [   8.       , -114.899185 , 4967.4614   ],
+            [   8.       , -120.507774 , 4911.3755   ],
+            [   8.       , -120.507774 , 4832.855    ],
+            [   8.       , -123.31207  , 4793.5947   ],
+            [   8.       , -123.31207  , 4748.726    ],
+            [   8.       , -117.70348  , 4712.2705   ],
+            [   8.       , -100.87771  , 4636.554    ],
+            [   8.       ,  -95.26911  , 4600.0986   ],
+            [   8.       ,  -75.639046 , 4513.1655   ],
+            [   8.       ,  -64.42186  , 4471.101    ],
+            [   8.       ,  -50.400383 , 4431.841    ],
+            [   8.       ,  -27.966019 , 4364.5376   ],
+            [   8.       ,   -5.5316544, 4305.6475   ],
+            [   8.       ,   11.294119 , 4243.953    ],
+            [   8.       ,   36.53278  , 4168.237    ],
+            [   8.       ,   53.358555 , 4078.4995   ],
+            [   8.       ,   75.792915 , 3971.9363   ],
+            [   8.       ,  101.03158  , 3809.287    ],
+            [   8.       ,  109.444466 , 3663.4639   ],
+            [   8.       ,  120.66165  , 3526.0532   ],
+            [   8.       ,  140.29172  , 3405.4685   ],
+            [   8.       ,  168.33467  , 3169.9077   ],
+            [   8.       ,  185.16045  , 2990.4329   ],
+            [   8.       ,  201.98622  , 2869.8481   ],
+            [   8.       ,  241.24637  , 2687.5688   ],
+            [   8.       ,  288.91937  , 2496.8767   ],
+            [   8.       ,  305.74515  , 2446.3994   ],
+            [   8.       ,  316.96234  , 2415.5522   ],
+            [   8.       ,  328.17953  , 2370.6836   ],
+            [   8.       ,  336.5924   , 2331.4233   ],
+            [   8.       ,  339.3967   , 2303.3804   ],
+            [   8.       ,  345.0053   , 2264.1204   ],
+            [   8.       ,  378.65686  , 2196.8171   ]
+        ])
+    )
 
-    worker.add_region("id_003", (810, 2481, 2034, 3888))
-    worker.add_region("id_003", (27, 3891, 1887, 5154))
+    worker.add_region("id_003",
+        np.array([
+            [   8.      , -109.290596, -296.20166 ],
+            [   8.      , -109.290596, 1187.27    ],
+            [   8.      ,  689.93353 , 1187.27    ],
+            [   8.      ,  689.93353 , -296.20166 ]
+        ])
+    )
 
-    worker.set_starting_hint("id_001", (8, 399, 24))
-    worker.set_starting_hint("id_002", (8, 1197, 24))
-    worker.set_starting_hint("id_003", (8, 1014, 2592))
+    worker.set_starting_hint("id_001", [8.0, 1220.98960248, -6.11470609])
+    worker.set_starting_hint("id_002", [8.0, 748.9657104  , 1817.38811913])
+    worker.set_starting_hint("id_003", [8.0, 426.00199476 , -60.77010412])
 
     worker.use_metric("Density", True)
     worker.use_metric("Integrated intensity", True)
     worker.use_metric("Local width", True)
     worker.use_metric("Integrated volume", True)
     
-    # worker.export_regions()
-    # worker.make_mask_and_skeleton()
-    # worker.make_medial_path()
-    # worker.make_measures()
-    # worker.make_plots()
+    worker.export_regions()
+    worker.make_mask_and_skeleton()
+    worker.make_medial_path()
+    worker.make_measures()
+    worker.make_plots()
+
+def launch_synthetic_workflow():
+    worker = BacteriaDensityWorker()
+    
+    nuclei_path = "/home/clement/Documents/projects/2119-bacteria-density/small-data/nuclei-1.tif"
+    bactos_path = "/home/clement/Documents/projects/2119-bacteria-density/small-data/bactos-1.tif"
+
+    nuclei = tiff.imread(nuclei_path)
+    bactos = tiff.imread(bactos_path)
+
+    worker.set_working_dir("/home/clement/Documents/projects/2119-bacteria-density/small-data/output-1")
+
+    worker.set_segmentation_channel(nuclei)
+    worker.add_measurement_channel("RFP", bactos)
+
+    worker.add_region("id_001",
+        np.array([
+            [   2.      ,  272.2688  ,  502.82126 ],
+            [   2.      ,  270.86417 ,  140.42494 ],
+            [   2.      ,  352.3331  ,  -43.582493],
+            [   2.      ,  539.14984 ,  -49.201042],
+            [   2.      ,  567.24255 ,  735.99097 ],
+            [   2.      ,  543.3637  , 1476.2346  ],
+            [   2.      ,  393.06757 , 1613.889   ],
+            [   2.      ,  241.36679 , 1508.5413  ],
+            [   2.      ,  172.53958 ,  977.5885  ],
+            [   2.      ,  178.15814 ,  669.973   ]
+        ])
+    )
+
+    worker.set_starting_hint("id_001", [  2.        , 416.24408502,  15.41225465])
+
+    worker.use_metric("Density", True)
+    worker.use_metric("Integrated intensity", True)
+    worker.use_metric("Local width", True)
+    worker.use_metric("Integrated volume", True)
+    
+    worker.export_regions()
+    worker.make_mask_and_skeleton()
+    worker.make_medial_path()
+    worker.make_measures()
+    worker.make_plots()
 
 def launch_recover_workflow():
     worker = BacteriaDensityWorker()
@@ -699,6 +914,7 @@ def launch_recover_workflow():
     worker.recover()
 
 if __name__ == "__main__":
-#    launch_analysis_workflow()
-#    print("\n ============================ \n")
-   launch_recover_workflow()
+    # launch_synthetic_workflow()
+    launch_analysis_workflow()
+    # print("\n ============================ \n")
+    # launch_recover_workflow()

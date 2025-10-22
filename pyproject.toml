@@ -35,7 +35,10 @@ dependencies = [
     "matplotlib",
     "scipy",
     "pandas",
-    "tifffile"
+    "tifffile",
+    "termcolor",
+    "shapely",
+    "rasterio"
 ]
 
 [project.optional-dependencies]

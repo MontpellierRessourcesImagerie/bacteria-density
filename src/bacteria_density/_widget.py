@@ -11,6 +11,7 @@ from napari.utils import progress
 
 import tifffile
 import numpy as np
+from shapely.geometry import Point
 
 from bacteria_density.utils import polygon_to_bbox, bbox_to_str, clr_to_str
 import bacteria_density.measure as measures
@@ -21,6 +22,16 @@ from bacteria_density.qt_workers import (QtExportCrops, QtMakeMasks,
                                          QtMedialAxis, QtMeasure, QtPlot)
 
 NEUTRAL = "--------"
+colors_rgba = [
+    (1.0, 0.0, 0.0, 1.0), # red
+    (0.0, 1.0, 0.0, 1.0), # green
+    (0.0, 0.0, 1.0, 1.0), # blue
+    (1.0, 1.0, 0.0, 1.0), # yellow
+    (1.0, 0.0, 1.0, 1.0), # magenta
+    (0.0, 1.0, 1.0, 1.0), # cyan
+    (1.0, 0.5, 0.0, 1.0), # orange
+    (0.5, 0.0, 1.0, 1.0), # purple
+]
 
 class BacteriaDensityWidget(QWidget):
 
@@ -77,8 +88,15 @@ class BacteriaDensityWidget(QWidget):
         self.gb_rois = QGroupBox("ROIs")
         rois_v = QVBoxLayout()
 
+        h_layout = QHBoxLayout()
+        for i in range(1, 5):
+            button = QPushButton(f"F{i}")
+            button.clicked.connect(lambda _, c=i: self.set_shape_filament(c))
+            h_layout.addWidget(button)
+        rois_v.addLayout(h_layout)
+
         self.cb_roi_start = self._make_layer_row(rois_v, "Starting points:")
-        self.cb_roi_bbox  = self._make_layer_row(rois_v, "Bounding-boxes:")
+        self.cb_roi_poly  = self._make_layer_row(rois_v, "Bounding polygons:")
 
         self.gb_rois.setLayout(rois_v)
         root.addWidget(self.gb_rois)
@@ -167,6 +185,21 @@ class BacteriaDensityWidget(QWidget):
 
         root.addStretch(1)
         self.setLayout(root)
+
+    def set_shape_filament(self, filament_class):
+        l = self.viewer.layers.selection.active
+        if l is None:
+            return
+        if not hasattr(l, 'edge_color'):
+            return
+        if len(l.edge_color) == 0:
+            return
+        color = colors_rgba[(filament_class - 1) % len(colors_rgba)]
+        all_edges = l.edge_color
+        all_edges[-1] = color
+        l.edge_width = 5
+        l.edge_color = all_edges
+        l.face_color = 'transparent'
 
     def set_activated_ui(self, active):
         self.gb_seg.setEnabled(active)
@@ -257,7 +290,8 @@ class BacteriaDensityWidget(QWidget):
                 else:
                     layer = self.viewer.add_labels(data, name=mask_name)
                 layer.scale = self.model.calibration
-                layer.translate = np.array([0, bbox[0], bbox[1]]) * self.model.calibration
+                xmin, ymin, _, _ = bbox
+                layer.translate = np.array([0, ymin, xmin]) * self.model.calibration
                 layer.contour = 6
 
     def _make_medial_path(self):
@@ -293,7 +327,8 @@ class BacteriaDensityWidget(QWidget):
                 else:
                     layer = self.viewer.add_shapes(data, name=path_name, shape_type='path')
                 layer.scale = self.model.calibration
-                layer.translate = np.array([0, bbox[0], bbox[1]]) * self.model.calibration
+                xmin, ymin, _, _ = bbox
+                layer.translate = np.array([0, ymin, xmin]) * self.model.calibration
                 layer.edge_color = np.array(utils.str_to_clr(clr_key))
                 layer.edge_width = 5
         self._show_rank()
@@ -350,7 +385,8 @@ class BacteriaDensityWidget(QWidget):
                 else:
                     layer = self.viewer.add_image(data, name=ctrl_name)
                 layer.scale = self.model.calibration
-                layer.translate = np.array([0, bbox[0], bbox[1]]) * self.model.calibration
+                xmin, ymin, _, _ = bbox
+                layer.translate = np.array([0, ymin, xmin]) * self.model.calibration
                 layer.blending = "additive"
                 layer.colormap = "magma"
                 layers.append(layer)
@@ -358,6 +394,14 @@ class BacteriaDensityWidget(QWidget):
             l.contrast_limits = (low, up)
 
     def export_crops(self):
+        # Set the output folder
+        if self.selected_folder is None:
+            self.model.error("No output folder selected.")
+            return
+        if not os.path.isdir(self.selected_folder):
+            self.model.error(f"Output folder '{self.selected_folder}' does not exist.")
+            return
+        self.model.set_working_dir(self.selected_folder)
         # set the segmentation channel
         seg_layer_name = self.cb_seg_channel.currentText()
         if seg_layer_name in self.viewer.layers:
@@ -375,29 +419,26 @@ class BacteriaDensityWidget(QWidget):
                 self.model.error(f"Measure layer '{layer_name}' not found.")
                 return
         # Set the bounding boxes
-        bbox  = self.cb_roi_bbox.currentText()
-        if bbox not in self.viewer.layers:
-            self.model.error(f"Bounding box layer '{bbox}' not found.")
+        poly_name = self.cb_roi_poly.currentText()
+        if poly_name not in self.viewer.layers:
+            self.model.error(f"Polygons layer '{poly_name}' not found.")
             return
         self._find_areas()
         for color, collection in self.image_areas.items():
-            for bbox in collection['bboxes']:
-                self.model.add_region(color, bbox)
+            for poly in collection['polygons']:
+                self.model.add_region(color, poly)
         for color, collection in self.image_areas.items():
             if collection['starter'] is not None:
                 self.model.set_starting_hint(color, collection['starter'])
-        # Set the output folder
-        if self.selected_folder is None:
-            self.model.error("No output folder selected.")
-            return
-        if not os.path.isdir(self.selected_folder):
-            self.model.error(f"Output folder '{self.selected_folder}' does not exist.")
-            return
-        self.model.set_working_dir(self.selected_folder)
         self.model.set_calibration(
             self.viewer.layers[seg_layer_name].scale,
             str(self.viewer.layers[seg_layer_name].units[0])
         )
+        # If a color (filament) doesn't have a starting point, abort
+        for color, collection in self.image_areas.items():
+            if collection['starter'] is None:
+                self.model.error(f"No starting point defined for color {color}.")
+                return
         
         # Run the export in a separate thread
         self.qt_worker = QtExportCrops(self.model)
@@ -434,13 +475,13 @@ class BacteriaDensityWidget(QWidget):
     def _show_rank(self):
         texts = []
         colors = []
-        for color, collection in self.image_areas.items():
+        for color, collection in self.model.chunks.items():
             for bbox in collection['bboxes']:
                 r = self.model.get_rank(color, bbox)
                 txt = f"R{r}" if r is not None else "?"
                 texts.append(txt)
                 colors.append(utils.str_to_clr(color))
-        area_name = self.cb_roi_bbox.currentText()
+        area_name = self.cb_roi_poly.currentText()
         text_parameters = {
             'string': texts,
             'size': 14,
@@ -459,28 +500,27 @@ class BacteriaDensityWidget(QWidget):
         if l_starting is None:
             return
         for point in l_starting.data:
-            pt = point
+            z, y, x = point
+            pt = Point(x, y)
             for color, collection in self.image_areas.items():
-                for bbox in collection['bboxes']:
-                    (minx, miny, maxx, maxy) = bbox
-                    if (minx <= pt[1] <= maxx) and (miny <= pt[2] <= maxy):
-                        collection['starter'] = pt
+                for poly in collection['polygons']:
+                    polygon = utils.as_polygon(poly)
+                    if polygon.contains(pt):
+                        collection['starter'] = (z, y, x)
                         break
 
     def _find_areas(self):
-        ln_bboxes = self.cb_roi_bbox.currentText()
-        l_bboxes   = None
-        if ln_bboxes in self.viewer.layers:
-            l_bboxes = self.viewer.layers[ln_bboxes]
-        if l_bboxes is None:
+        ln_polys = self.cb_roi_poly.currentText()
+        l_polys  = None
+        if ln_polys in self.viewer.layers:
+            l_polys = self.viewer.layers[ln_polys]
+        if l_polys is None:
             return
         self.image_areas = {}
-        for index, (color, coords) in enumerate(zip(l_bboxes.edge_color, l_bboxes.data)):
+        for index, (color, coords) in enumerate(zip(l_polys.edge_color, l_polys.data)):
             clr_key = clr_to_str(color)
-            collection = self.image_areas.setdefault(clr_key, {'bboxes': [], 'starter': None, 'indices': []})
-            bbox = polygon_to_bbox(coords)
-            # update the box for it to match the one returned if it has been fixed
-            collection['bboxes'].append(bbox)
+            collection = self.image_areas.setdefault(clr_key, {'polygons': [], 'starter': None, 'indices': []})
+            collection['polygons'].append(coords)
             collection['indices'].append(index)
         self._find_starters()
 
@@ -717,7 +757,7 @@ class BacteriaDensityWidget(QWidget):
 
     def get_rois(self):
         start = self.cb_roi_start.currentText()
-        bbox  = self.cb_roi_bbox.currentText()
+        bbox  = self.cb_roi_poly.currentText()
         return {
             'starting_points': None if start == NEUTRAL else start,
             'bounding_boxes': None if bbox  == NEUTRAL else bbox
@@ -739,56 +779,194 @@ def launch_test_procedure():
 
     print("--- Workflow: Small data ---")
 
-    dapi_path = "/home/clement/Documents/projects/2119-bacteria-density/small-data/nuclei.tif"
+    dapi_path   = "/home/clement/Documents/projects/2119-bacteria-density/small-data/nuclei.tif"
     bactos_path = "/home/clement/Documents/projects/2119-bacteria-density/small-data/bactos.tif"
-    dapi = tiff.imread(dapi_path)
-    bactos = tiff.imread(bactos_path)
-    layers = []
+    dapi        = tiff.imread(dapi_path)
+    bactos      = tiff.imread(bactos_path)
+    layers      = []
 
     l1 = viewer.add_image(bactos, name="Bactos")
     l1.contrast_limits = (np.min(bactos), np.max(bactos))
     layers.append(l1)
+
     l2 = viewer.add_image(dapi, name="Nuclei")
     l2.contrast_limits = (np.min(dapi), np.max(dapi))
     layers.append(l2)
 
     polygons = [
         np.array([
-            [8.0, 1033.3129, -58.605434],
-            [8.0, 1033.3129, 879.8012],
-            [8.0, 3024.0767, 879.8012],
-            [8.0, 3024.0767, -58.605434]
-        ], dtype=np.float32),
+            [   8.      ,  984.3847  ,  -24.18498 ],
+            [   8.      , 1475.1365  ,  -29.793571],
+            [   8.      , 1727.5231  ,  320.74338 ],
+            [   8.      , 2361.294   ,  317.9391  ],
+            [   8.      , 2832.4155  ,  472.17535 ],
+            [   8.      , 2905.3271  , 1080.7075  ],
+            [   8.      , 2386.5325  , 1686.4353  ],
+            [   8.      , 1346.1388  , 1753.7384  ],
+            [   8.      ,  922.6902  , 1770.5642  ],
+            [   8.      ,  474.0029  , 1686.4353  ],
+            [   8.      ,  782.4754  , 1321.877   ],
+            [   8.      , 1298.4658  , 1215.3137  ],
+            [   8.      , 1850.9121  , 1091.9247  ],
+            [   8.      , 2055.6257  ,  791.86505 ],
+            [   8.      , 1340.5303  ,  783.45215 ],
+            [   8.      , 1006.8191  ,  200.15868 ]
+        ]),
         np.array([
-            [8.0, 535.62195, 1715.7289],
-            [8.0, 535.62195, 889.4637],
-            [8.0, 2922.6006, 889.4637],
-            [8.0, 2922.6006, 1715.7289]
-        ], dtype=np.float32),
+            [   8.       ,  485.2201   , 1807.02     ],
+            [   8.       ,  510.45874  , 1792.9985   ],
+            [   8.       ,  538.5017   , 1787.39     ],
+            [   8.       ,  574.9575   , 1784.5857   ],
+            [   8.       ,  614.21765  , 1784.5857   ],
+            [   8.       ,  656.2821   , 1781.7814   ],
+            [   8.       ,  726.3895   , 1781.7814   ],
+            [   8.       ,  785.2797   , 1787.39     ],
+            [   8.       ,  818.9313   , 1787.39     ],
+            [   8.       ,  852.5828   , 1790.1943   ],
+            [   8.       ,  953.5375   , 1807.02     ],
+            [   8.       , 1037.6663   , 1832.2587   ],
+            [   8.       , 1110.578    , 1871.5189   ],
+            [   8.       , 1147.0338   , 1899.5618   ],
+            [   8.       , 1177.8811   , 1916.3876   ],
+            [   8.       , 1208.7284   , 1938.822    ],
+            [   8.       , 1245.1842   , 1961.2563   ],
+            [   8.       , 1276.0315   , 1989.2993   ],
+            [   8.       , 1301.2701   , 2014.538    ],
+            [   8.       , 1320.9001   , 2039.7766   ],
+            [   8.       , 1351.7474   , 2076.2324   ],
+            [   8.       , 1376.9861   , 2121.101    ],
+            [   8.       , 1399.4204   , 2177.187    ],
+            [   8.       , 1407.8334   , 2205.23     ],
+            [   8.       , 1413.4419   , 2236.0774   ],
+            [   8.       , 1416.2462   , 2264.1204   ],
+            [   8.       , 1416.2462   , 2510.8982   ],
+            [   8.       , 1421.8549   , 2552.9626   ],
+            [   8.       , 1430.2677   , 2595.027    ],
+            [   8.       , 1441.4849   , 2637.0916   ],
+            [   8.       , 1461.115    , 2690.3733   ],
+            [   8.       , 1477.9407   , 2743.6548   ],
+            [   8.       , 1508.788    , 2808.1536   ],
+            [   8.       , 1542.4396   , 2875.4568   ],
+            [   8.       , 1578.8954   , 2942.7598   ],
+            [   8.       , 1609.7427   , 3015.6714   ],
+            [   8.       , 1646.1985   , 3085.7788   ],
+            [   8.       , 1682.6543   , 3144.6692   ],
+            [   8.       , 1716.3059   , 3195.1465   ],
+            [   8.       , 1780.8047   , 3284.8838   ],
+            [   8.       , 1825.6733   , 3357.7957   ],
+            [   8.       , 1850.9121   , 3402.6643   ],
+            [   8.       , 1867.7378   , 3441.9243   ],
+            [   8.       , 1887.3679   , 3481.1846   ],
+            [   8.       , 1901.3894   , 3517.6404   ],
+            [   8.       , 1926.628    , 3573.7263   ],
+            [   8.       , 1943.4539   , 3618.595    ],
+            [   8.       , 1960.2795   , 3669.0723   ],
+            [   8.       , 1974.301    , 3722.354    ],
+            [   8.       , 1985.5182   , 3792.4614   ],
+            [   8.       , 1991.1268   , 3837.33     ],
+            [   8.       , 1999.5397   , 3879.3945   ],
+            [   8.       , 2005.1483   , 3927.0676   ],
+            [   8.       , 2007.9526   , 3974.7405   ],
+            [   8.       , 2007.9526   , 4095.3252   ],
+            [   8.       , 1996.7355   , 4142.9985   ],
+            [   8.       , 1977.1053   , 4210.3013   ],
+            [   8.       , 1963.0839   , 4243.953    ],
+            [   8.       , 1951.8667   , 4274.8003   ],
+            [   8.       , 1932.2366   , 4314.0605   ],
+            [   8.       , 1915.4109   , 4342.1035   ],
+            [   8.       , 1901.3894   , 4367.342    ],
+            [   8.       , 1878.955    , 4400.9937   ],
+            [   8.       , 1848.1078   , 4443.058    ],
+            [   8.       , 1825.6733   , 4468.2964   ],
+            [   8.       , 1797.6305   , 4504.7524   ],
+            [   8.       , 1766.7832   , 4538.404    ],
+            [   8.       , 1688.263    , 4611.316    ],
+            [   8.       , 1665.8285   , 4633.75     ],
+            [   8.       , 1595.7212   , 4689.836    ],
+            [   8.       , 1567.6782   , 4706.6616   ],
+            [   8.       , 1545.2438   , 4726.292    ],
+            [   8.       , 1497.5708   , 4757.139    ],
+            [   8.       , 1455.5063   , 4779.573    ],
+            [   8.       , 1368.5732   , 4832.855    ],
+            [   8.       , 1323.7045   , 4855.2896   ],
+            [   8.       , 1270.4229   , 4877.7236   ],
+            [   8.       , 1233.967    , 4894.5493   ],
+            [   8.       , 1169.4683   , 4919.788    ],
+            [   8.       , 1121.7952   , 4936.614    ],
+            [   8.       , 1085.3394   , 4947.831    ],
+            [   8.       , 1040.4706   , 4959.0483   ],
+            [   8.       , 1001.21045  , 4967.4614   ],
+            [   8.       ,  959.14606  , 4978.678    ],
+            [   8.       ,  922.6902   , 4989.8955   ],
+            [   8.       ,  880.6258   , 4998.3086   ],
+            [   8.       ,  816.12695  , 5017.9385   ],
+            [   8.       ,  737.6067   , 5043.1772   ],
+            [   8.       ,  628.23914  , 5079.6333   ],
+            [   8.       ,  549.7189   , 5102.0674   ],
+            [   8.       ,  474.0029   , 5127.306    ],
+            [   8.       ,  375.85254  , 5158.1533   ],
+            [   8.       ,  345.0053   , 5169.3706   ],
+            [   8.       ,  314.15805  , 5177.783    ],
+            [   8.       ,  252.46355  , 5189.0005   ],
+            [   8.       ,  193.57333  , 5194.6094   ],
+            [   8.       ,   44.945667 , 5194.6094   ],
+            [   8.       ,   16.90271  , 5189.0005   ],
+            [   8.       ,  -19.553133 , 5169.3706   ],
+            [   8.       ,  -50.400383 , 5132.9146   ],
+            [   8.       ,  -67.22616  , 5102.0674   ],
+            [   8.       , -103.682    , 5015.1343   ],
+            [   8.       , -114.899185 , 4967.4614   ],
+            [   8.       , -120.507774 , 4911.3755   ],
+            [   8.       , -120.507774 , 4832.855    ],
+            [   8.       , -123.31207  , 4793.5947   ],
+            [   8.       , -123.31207  , 4748.726    ],
+            [   8.       , -117.70348  , 4712.2705   ],
+            [   8.       , -100.87771  , 4636.554    ],
+            [   8.       ,  -95.26911  , 4600.0986   ],
+            [   8.       ,  -75.639046 , 4513.1655   ],
+            [   8.       ,  -64.42186  , 4471.101    ],
+            [   8.       ,  -50.400383 , 4431.841    ],
+            [   8.       ,  -27.966019 , 4364.5376   ],
+            [   8.       ,   -5.5316544, 4305.6475   ],
+            [   8.       ,   11.294119 , 4243.953    ],
+            [   8.       ,   36.53278  , 4168.237    ],
+            [   8.       ,   53.358555 , 4078.4995   ],
+            [   8.       ,   75.792915 , 3971.9363   ],
+            [   8.       ,  101.03158  , 3809.287    ],
+            [   8.       ,  109.444466 , 3663.4639   ],
+            [   8.       ,  120.66165  , 3526.0532   ],
+            [   8.       ,  140.29172  , 3405.4685   ],
+            [   8.       ,  168.33467  , 3169.9077   ],
+            [   8.       ,  185.16045  , 2990.4329   ],
+            [   8.       ,  201.98622  , 2869.8481   ],
+            [   8.       ,  241.24637  , 2687.5688   ],
+            [   8.       ,  288.91937  , 2496.8767   ],
+            [   8.       ,  305.74515  , 2446.3994   ],
+            [   8.       ,  316.96234  , 2415.5522   ],
+            [   8.       ,  328.17953  , 2370.6836   ],
+            [   8.       ,  336.5924   , 2331.4233   ],
+            [   8.       ,  339.3967   , 2303.3804   ],
+            [   8.       ,  345.0053   , 2264.1204   ],
+            [   8.       ,  378.65686  , 2196.8171   ]
+        ]),
         np.array([
-            [8.0, -0.7245788, 5218.893],
-            [8.0, -0.7245788, 3923.938],
-            [8.0, 2168.8213, 3923.938],
-            [8.0, 2168.8213, 5218.893]
-        ], dtype=np.float32),
-        np.array([
-            [8.0, 728.9, 2392.202],
-            [8.0, 728.9, 3861.121],
-            [8.0, 2183.3213, 3861.121],
-            [8.0, 2183.3213, 2392.202]
-        ], dtype=np.float32)
+            [   8.      , -109.290596, -296.20166 ],
+            [   8.      , -109.290596, 1187.27    ],
+            [   8.      ,  689.93353 , 1187.27    ],
+            [   8.      ,  689.93353 , -296.20166 ]
+        ])
     ]
 
     colors = np.array([
         [1., 0., 0., 1.],
-        [1., 0., 0., 1.],
         [1., 1., 0., 1.],
-        [1., 1., 0., 1.]
+        [1., 0., 1., 1.]
     ])
 
     hint_points = np.array([
-        [8.0, 1177.36258064, 43.96269857],
-        [8.0, 985.30366987, 2442.73929836]
+        [8.0, 1220.98960248, -6.11470609],
+        [8.0, 748.9657104  , 1817.38811913],
+        [8.0, 426.00199476 , -60.77010412]
     ])
 
     l3 = viewer.add_shapes(polygons, shape_type='polygon', edge_color=colors, face_color='transparent', edge_width=20, name="Areas")
@@ -803,8 +981,8 @@ def launch_test_procedure():
     widget.measure_rows[0]['edit'].setText("RFP")
     # ROIs
     widget.cb_roi_start.setCurrentText("Hint Points")
-    widget.cb_roi_bbox.setCurrentText("Areas")
-
+    widget.cb_roi_poly.setCurrentText("Areas")
+    # Output folder
     widget.selected_folder = "/home/clement/Documents/projects/2119-bacteria-density/small-data/output"
 
     for l in layers:

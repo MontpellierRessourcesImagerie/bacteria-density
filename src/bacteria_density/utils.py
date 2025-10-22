@@ -2,6 +2,42 @@ import numpy as np
 import random
 import os
 import shutil
+from shapely.geometry import Polygon
+from rasterio import features
+import tifffile
+
+def as_polygon(coordinates):
+    print(coordinates)
+    xy = coordinates[..., -2:][..., ::-1]
+    return Polygon(xy)
+
+def make_crop(image, shape, bbox):
+    """
+    Crop a (N,...,H,W) image stack to the polygon `shape`, safely clamped to the image
+    bounds and optionally intersected with `bbox`.
+
+    Args:
+        image: array-like where last two dims are (H, W) (e.g. (Z, H, W) or (C, H, W))
+        shape: a shapely Polygon in the same pixel coordinate space as the image
+        bbox: optional tuple (ymin, xmin, ymax, xmax) to further intersect the crop
+
+    Returns:
+        The cropped stack as an array with the same leading dims as `image` and
+        spatial dims reduced to the intersection (may be empty if no overlap).
+    """
+    H, W = image.shape[-2:]
+    # rasterize polygon into image-sized mask
+    mask2d = features.rasterize(
+        [(shape, 1)],
+        out_shape=(H, W),
+        fill=0,
+        dtype=image.dtype
+    )
+
+    # apply mask to image (broadcasts over leading dims)
+    masked = mask2d[np.newaxis, ...] * image
+    xmin, ymin, xmax, ymax = bbox
+    return masked[:, ymin:ymax, xmin:xmax]
 
 def get_binned_distances(bin_length, distances):
     total_length = distances[-1]
