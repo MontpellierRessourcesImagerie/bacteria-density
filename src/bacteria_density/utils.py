@@ -7,7 +7,6 @@ from rasterio import features
 import tifffile
 
 def as_polygon(coordinates):
-    print(coordinates)
     xy = coordinates[..., -2:][..., ::-1]
     return Polygon(xy)
 
@@ -97,8 +96,8 @@ def clr_to_str(clr):
 
 def str_to_clr(clr_str):
     parts = clr_str.split("-")
-    if len(parts) != 3:
-        raise ValueError("Color string must have three components")
+    if len(parts) not in [3, 4]:
+        raise ValueError("Color string must have three or four components")
     return tuple(int(p) / 255.0 for p in parts)
 
 def bbox_to_str(bbox):

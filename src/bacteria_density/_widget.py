@@ -677,9 +677,11 @@ class BacteriaDensityWidget(QWidget):
     
     def recover_regions_ui(self):
         d, _, _ = self.model.get_segmentation_channel()[1].shape
+        polygons = []
+        colors = []
+        points = []
         for str_color, collection in self.model.chunks.items():
             color = utils.str_to_clr(str_color)
-            polygons = []
             for bbox in collection['bboxes']:
                 (minx, miny, maxx, maxy) = bbox
                 poly = np.array([
@@ -689,12 +691,11 @@ class BacteriaDensityWidget(QWidget):
                     [d//2, maxx, miny]
                 ], dtype=np.float32)
                 polygons.append(poly)
-            if not polygons:
-                return False
-            colors = np.array([color for _ in polygons])
-            self.viewer.add_shapes(polygons, shape_type='polygon', edge_color=colors, face_color='transparent', edge_width=20, name="Areas")
             if collection['start'] is not None:
-                self.viewer.add_points(np.array([collection['start']]), name="Hint Points", size=20, face_color="cyan")
+                points.append(collection['start'])
+            colors += [color for _ in polygons]
+        self.viewer.add_shapes(polygons, shape_type='polygon', edge_color=colors, face_color='transparent', edge_width=20, name="Areas")
+        self.viewer.add_points(points, name="Hint Points", size=20, face_color="cyan")
         return True
     
     def recover_mask(self):

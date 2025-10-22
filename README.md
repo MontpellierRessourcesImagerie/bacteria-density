@@ -32,15 +32,15 @@
 
 #### 2. Measures
 
-- For each channel in which you want to make intensity measurements, indicate the layer (in the dropdown menu) and provide a name for what it contains.
+- For each channel in which you want to make intensity measurements, indicate the layer (in the dropdown menu) and provide a name for what it contains. This name is used to name the columns in the results table.
 
 #### 3. ROIs
 
 - Above the layers list, add a new "Shape layer".
-- Add rectangles for each region that you would like to process.
-- Change the "edge color" to represent the different filaments (one color == one filament).
+- Add polygons for each region that you would like to process.
+- Use the `F1`, `F2`, `F3` & `F4` buttons to change the edge color of these polygons. Each color represents a filament. If several areas share a same color, it means that they are part of the same filament and were cut for some reason (obstacle, crossing, ...).
 - Add a new "Points layer".
-- For each filament (one box per color), add a point approximately where the filament starts.
+- For each filament (each color), add a point approximately where the filament starts. There should be exactly one point per color.
 - In the dropdown menus, provide the new shape and point layers.
 
 #### 4. Settings

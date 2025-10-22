@@ -207,7 +207,7 @@ class BacteriaDensityWorker(object):
         for id_str, data in as_json.items():
             chunks[id_str] = {
                 'start' : np.array(data['start']) if data['start'] is not None else None,
-                'polygons': [utils.as_polygon(coords) for coords in data['polygons']],
+                'polygons': [np.array(coords) for coords in data['polygons']],
                 'ranks' : {tuple(map(int, bbox.split(","))): rank for bbox, rank in data['ranks'].items()},
                 # 'bboxes' : [tuple(map(int, bbox.split(","))) for bbox in data['bboxes']]
             }
@@ -915,6 +915,6 @@ def launch_recover_workflow():
 
 if __name__ == "__main__":
     # launch_synthetic_workflow()
-    launch_analysis_workflow()
+    # launch_analysis_workflow()
     # print("\n ============================ \n")
-    # launch_recover_workflow()
+    launch_recover_workflow()
