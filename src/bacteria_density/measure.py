@@ -50,8 +50,7 @@ def local_density(ch_name, results_table):
     integrated_intensity = results_table.get(f"{ch_name} - Integrated intensity", None)
     if integrated_intensity is None:
         return
-    density = integrated_intensity / integrated_volume
-    # density[np.isnan(density)] = 0
+    density = integrated_intensity / (integrated_volume + 1)
     return density
 
 #####################################################################################

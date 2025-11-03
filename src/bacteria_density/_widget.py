@@ -196,8 +196,13 @@ class BacteriaDensityWidget(QWidget):
             return
         color = colors_rgba[(filament_class - 1) % len(colors_rgba)]
         all_edges = l.edge_color
-        all_edges[-1] = color
-        l.edge_width = 5
+        if len(l.selected_data) == 0:
+            all_edges[-1] = color
+        else:
+            for i in l.selected_data:
+                all_edges[i] = color
+        # crop "all_edges" to the right length if needed
+        all_edges = all_edges[:len(l.data)]
         l.edge_color = all_edges
         l.face_color = 'transparent'
 
