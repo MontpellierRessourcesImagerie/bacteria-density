@@ -10,6 +10,9 @@ def as_polygon(coordinates):
     xy = coordinates[..., -2:][..., ::-1]
     return Polygon(xy)
 
+def from_polygon(polygon):
+    return np.array(polygon.exterior.coords)[..., ::-1]
+
 def make_crop(image, shape, bbox):
     """
     Crop a (N,...,H,W) image stack to the polygon `shape`, safely clamped to the image

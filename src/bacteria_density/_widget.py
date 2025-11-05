@@ -668,7 +668,8 @@ class BacteriaDensityWidget(QWidget):
         self.cb_seg_channel.setCurrentText(seg_name)
         # Recover the measurement channels
         for name, data in self.model.get_measurement_channels().items():
-            self.viewer.add_image(data, name=name)
+            l = self.viewer.add_image(data, name=name)
+            l.contrast_limits = (np.min(data), np.max(data))
             row = self.measure_rows[-1]
             row['combo'].setCurrentText(name)
             row['edit'].setText(name)
@@ -676,25 +677,18 @@ class BacteriaDensityWidget(QWidget):
     
     def recover_calibration_ui(self):
         for l in self.viewer.layers:
-            l.scale = np.array(self.model.calibration)
+            l.scale = np.array(self.model.calibration[-l.ndim:])
         self.viewer.scale_bar.unit = self.model.unit
         return True
     
     def recover_regions_ui(self):
-        d, _, _ = self.model.get_segmentation_channel()[1].shape
         polygons = []
         colors = []
         points = []
         for str_color, collection in self.model.chunks.items():
             color = utils.str_to_clr(str_color)
-            for bbox in collection['bboxes']:
-                (minx, miny, maxx, maxy) = bbox
-                poly = np.array([
-                    [d//2, minx, miny],
-                    [d//2, minx, maxy],
-                    [d//2, maxx, maxy],
-                    [d//2, maxx, miny]
-                ], dtype=np.float32)
+            for poly in collection['polygons']:
+                poly = utils.from_polygon(poly)
                 polygons.append(poly)
             if collection['start'] is not None:
                 points.append(collection['start'])
@@ -723,21 +717,16 @@ class BacteriaDensityWidget(QWidget):
     
     def recover_ui_from_model(self):
         self.set_activated_ui(False)
-        if not self.recover_images_ui():
-            self.set_activated_ui(True)
-            return
-        if not self.recover_regions_ui():
-            self.set_activated_ui(True)
-            return
-        if not self.recover_mask():
-            self.set_activated_ui(True)
-            return
-        if not self.recover_medial_path():
-            self.set_activated_ui(True)
-            return
-        if not self.recover_measures():
-            self.set_activated_ui(True)
-            return
+        operations = [
+            self.recover_images_ui,
+            self.recover_regions_ui,
+            self.recover_mask,
+            self.recover_medial_path,
+            self.recover_measures
+        ]
+        for op in operations:
+            if not op():
+                break
         self.recover_calibration_ui()
         self.set_activated_ui(True)
 
