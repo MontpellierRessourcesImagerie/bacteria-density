@@ -1,0 +1,7 @@
+bacteria\_density.plots module
+==============================
+
+.. automodule:: bacteria_density.plots
+   :members:
+   :undoc-members:
+   :show-inheritance:

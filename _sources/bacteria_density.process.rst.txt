@@ -1,0 +1,7 @@
+bacteria\_density.process module
+================================
+
+.. automodule:: bacteria_density.process
+   :members:
+   :undoc-members:
+   :show-inheritance:
