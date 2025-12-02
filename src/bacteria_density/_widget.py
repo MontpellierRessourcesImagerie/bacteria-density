@@ -8,6 +8,7 @@ from qtpy.QtCore import Qt, QThread
 
 import napari
 from napari.utils import progress
+from napari.utils.notifications import show_info
 
 import tifffile
 import numpy as np
@@ -179,6 +180,15 @@ class BacteriaDensityWidget(QWidget):
         self.btn_create_plots = QPushButton("Create Plots")
         self.btn_create_plots.clicked.connect(self._create_plots)
         set_v.addWidget(self.btn_create_plots)
+
+        # add a dropdown and a button on a line to choose a shape layer and launch the discarded volume processing
+        set_v.addSpacing(10)
+        self.discarded_volume_dropdown = self._make_layer_row(set_v, "Discarded polygons:")
+        self.btn_process_discarded = QPushButton("Process discarded volume")
+        self.btn_process_discarded.clicked.connect(self._process_discarded_volume)
+        set_v.addWidget(self.btn_process_discarded)
+        self.discarded_label = QLabel("Discarded volume: ---")
+        set_v.addWidget(self.discarded_label)
 
         self.gb_workflow.setLayout(set_v)
         root.addWidget(self.gb_workflow)
@@ -763,6 +773,31 @@ class BacteriaDensityWidget(QWidget):
             'pixel_size_um': float(self.sb_pixel.value()),
             'folder': self.selected_folder
         }
+    
+    def _process_discarded_volume(self):
+        # Combo-box containing the polygons representing the discarded areas.
+        disc_name = self.discarded_volume_dropdown.currentText()
+        if disc_name not in self.viewer.layers:
+            self.model.error(f"Discarded polygons layer '{disc_name}' not found.")
+            return
+        l_disc = self.viewer.layers[disc_name]
+        # Combo-box containing the segmentation channel.
+        seg_name = self.cb_seg_channel.currentText()
+        if seg_name not in self.viewer.layers:
+            self.model.error(f"Segmentation layer '{seg_name}' not found.")
+            return
+        l_seg = self.viewer.layers[seg_name]
+        calib = l_seg.scale
+        voxel_volume = calib[-1] * calib[-2] * calib[-3]
+        shape2d = l_seg.data.shape[-2:]
+        n_z = l_seg.data.shape[0]
+        canvas = np.zeros(shape2d, dtype=np.uint8)
+        for index in range(len(l_disc.data)):
+            poly = utils.as_polygon(l_disc.data[index])
+            canvas = np.logical_or(canvas, utils.polygon_to_mask(poly, shape2d))
+        n_true = np.sum(canvas)
+        total_volume = n_true * n_z * voxel_volume
+        self.discarded_label.setText(f"Discarded volume: {total_volume:.2f} {self.model.unit}³")
 
 
 def launch_test_procedure():

@@ -21,8 +21,8 @@ sys.path.insert(0, mod_path)
 
 # -- Project information -----------------------------------------------------
 
-project   = 'Microglia Analyzer'
-copyright = '2024, Clément H. Benedetti'
+project   = 'Bacteria Density Analyzer'
+copyright = '2025, Clément H. Benedetti'
 author    = 'Clément H. BENEDETTI'
 
 # The full version, including alpha/beta/rc tags

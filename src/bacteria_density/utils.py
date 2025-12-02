@@ -5,6 +5,7 @@ import shutil
 from shapely.geometry import Polygon
 from rasterio import features
 import tifffile
+from PIL import Image, ImageDraw
 
 def as_polygon(coordinates):
     xy = coordinates[..., -2:][..., ::-1]
@@ -12,6 +13,32 @@ def as_polygon(coordinates):
 
 def from_polygon(polygon):
     return np.array(polygon.exterior.coords)[..., ::-1]
+
+def polygon_to_mask(poly, shape):
+    height, width = shape
+    if poly.is_empty:
+        return np.zeros(shape, dtype=bool)
+
+    img = Image.new("L", (width, height), 0)
+    draw = ImageDraw.Draw(img)
+
+    def _draw_single_polygon(p):
+        exterior = [(x, y) for x, y in p.exterior.coords]
+        draw.polygon(exterior, outline=1, fill=1)
+        for interior in p.interiors:
+            hole = [(x, y) for x, y in interior.coords]
+            draw.polygon(hole, outline=0, fill=0)
+
+    if poly.geom_type == "Polygon":
+        _draw_single_polygon(poly)
+    elif poly.geom_type == "MultiPolygon":
+        for p in poly.geoms:
+            _draw_single_polygon(p)
+    else:
+        raise TypeError(f"Unsupported geometry type: {poly.geom_type}")
+
+    mask = np.array(img, dtype=bool)
+    return mask
 
 def make_crop(image, shape, bbox):
     """
