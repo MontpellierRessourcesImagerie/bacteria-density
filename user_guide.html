@@ -1,0 +1,221 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bacteria Density Analyzer: User’s guide &mdash; Bacteria Density Analyzer 0.0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=5b94cef0" />
+
+  
+    <link rel="shortcut icon" href="_static/icon.png"/>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=d45e8c67"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Bacteria Density Analyzer: Abstract" href="abstract.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Bacteria Density Analyzer
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="intro_install.html">Introduction to “Bacteria Density Analyzer”</a></li>
+<li class="toctree-l1"><a class="reference internal" href="abstract.html">Bacteria Density Analyzer: Abstract</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Bacteria Density Analyzer: User’s guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#load-the-images-and-open-the-plugin-s-panel">0. Load the images and open the plugin’s panel</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#segmentation">1. Segmentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#measures">2. Measures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#rois">3. ROIs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#settings">4. Settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#workflow">5. Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#optional">6. Optional</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Bacteria Density Analyzer</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Bacteria Density Analyzer: User’s guide</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/user_guide.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="bacteria-density-analyzer-user-s-guide">
+<h1>Bacteria Density Analyzer: User’s guide<a class="headerlink" href="#bacteria-density-analyzer-user-s-guide" title="Link to this heading"></a></h1>
+<section id="load-the-images-and-open-the-plugin-s-panel">
+<h2>0. Load the images and open the plugin’s panel<a class="headerlink" href="#load-the-images-and-open-the-plugin-s-panel" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>To use an image, the channels must be separated in different layers of Napari.</p></li>
+<li><p>The easier way to get that is to have your images split into different files, each file containing one channel.</p></li>
+<li><p>Another way would be to use <code class="code docutils literal notranslate"><span class="pre">napari-imagej</span></code> (another plugin) that allows Napari to read the memory of Fiji.</p></li>
+<li><p>If you already have one TIFF file per channel, you can drag’n’drop then into Napari’s main window.</p></li>
+<li><p>They should appear in the “layers list” (in the lower left corner). The list is a stack, so you only see the uppermost layer.</p></li>
+<li><p>You can use the “once” button in the “layer controls” panel to adjust the contrast of each layer for better visualization.</p></li>
+<li><p>You can now go in the top bar menu: Plugins &gt; Density vs. distance to open the plugin’s panel.</p></li>
+<li><p>The panel should appear on the right side of Napari’s window.</p></li>
+</ul>
+</section>
+<section id="segmentation">
+<h2>1. Segmentation<a class="headerlink" href="#segmentation" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>In the “Nuclei channel” dropdown menu, select the layer corresponding to the nuclei channel.</p></li>
+</ul>
+</section>
+<section id="measures">
+<h2>2. Measures<a class="headerlink" href="#measures" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><dl class="simple">
+<dt>For each channel in which you want to make intensity measurements:</dt><dd><ul>
+<li><p>Use the “Ci” dropdown menu to select the corresponding layer.</p></li>
+<li><p>In the text input on the right containing “—” by default, provide the name for this channel that will be used in the results table.</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p>There is always a blank line at the end, it is normal.</p></li>
+</ul>
+</section>
+<section id="rois">
+<h2>3. ROIs<a class="headerlink" href="#rois" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Above the “layers list” panel, add a new “Shape layer”.</p></li>
+<li><p>Add polygons for each region that you would like to process. Before drawing, you can increase the edge thickness for better visibility.</p></li>
+<li><dl class="simple">
+<dt>Use the <cite>F1</cite>, <cite>F2</cite>, <cite>F3</cite> &amp; <cite>F4</cite> buttons to change the edge color of these polygons. Each color represents a filament. If several areas share a same color, it means that they are part of the same filament and were cut for some reason (obstacle, crossing, …).</dt><dd><ul>
+<li><p>1: Red</p></li>
+<li><p>2: Green</p></li>
+<li><p>3: Blue</p></li>
+<li><p>4: Yellow</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p>Add a new “Points layer”. In the “layers control” panel, switch to the “Add points” mode. Before placing the first point, you can increase the size of the points for better visibility.</p></li>
+<li><p>For each filament (each color), add a point approximately where the filament starts. There should be exactly one point per color.</p></li>
+<li><p>In the dropdown menus of the ROIs box of the plugin, provide the new shape and point layers.</p></li>
+</ul>
+</section>
+<section id="settings">
+<h2>4. Settings<a class="headerlink" href="#settings" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Using the “Set output folder”, provide the path to an empty directory.</p></li>
+<li><p>Note: If you already completed an analysis and need to reload the results (for visualization only), you can use this same button and provide the path to the folder that you used for the desired analysis.</p></li>
+<li><p>Select the binning length using the input below (binning of measures along the skeleton).</p></li>
+<li><p>Select the list of measurements that you would like to process.</p></li>
+</ul>
+</section>
+<section id="workflow">
+<h2>5. Workflow<a class="headerlink" href="#workflow" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>From this point, you can click on each button from top to bottom:</p></li>
+<li><p><strong>Chunk images:</strong> Will export a copy of each selected area in the working directory.</p></li>
+<li><p><strong>Skeletonize:</strong> Will create a mask and a skeleton of the corresponding branch. An outline of the mask will be displayed.</p></li>
+<li><p><strong>Make medial path:</strong> Will process the path over the organ and assemble the fragments. You can check the result by searching for the middle of the stack using the slider under the image.</p></li>
+<li><p><strong>Measure:</strong> Will perform the measures and export the CSV.</p></li>
+<li><p><strong>Create Plots:</strong> Export the plots as PNG with a dashed-line between segments.</p></li>
+</ul>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Metric</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Integrated intensity</p></td>
+<td><p>Sum of all intensities for the voxels refering to this bin.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Integrated volume</p></td>
+<td><p>Total volume taken by the voxels refering to this bin.</p></td>
+</tr>
+<tr class="row-even"><td><p>Local width</p></td>
+<td><p>Local width measured along the skeleton.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="optional">
+<h2>6. Optional<a class="headerlink" href="#optional" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>If you need so, you can get an approximation of the discarded volume of organ on your image.</p></li>
+<li><p>To do that, add a new shape layer and draw a polygon over each area that you didn’t include in any filament.</p></li>
+<li><p>In the “Discarded polygons” dropdown menu from the plugin’s tab, choose the shape layer containing the polygons that you just drew.</p></li>
+<li><p>If you click the “Process discarded volume” button, the discarded volume should be displayed right beneath it.</p></li>
+<li><p>It is an approximation in the way that the area you just indicated cannot be segmented. To estimate the volume, an artificial mask is built. It is as deep (== Z-axis == nb of slices) as the whole stack and has the polygons shape on every slice.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="abstract.html" class="btn btn-neutral float-left" title="Bacteria Density Analyzer: Abstract" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Clément H. Benedetti.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

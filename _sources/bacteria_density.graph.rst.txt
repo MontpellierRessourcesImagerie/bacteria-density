@@ -1,0 +1,7 @@
+bacteria\_density.graph module
+==============================
+
+.. automodule:: bacteria_density.graph
+   :members:
+   :undoc-members:
+   :show-inheritance:

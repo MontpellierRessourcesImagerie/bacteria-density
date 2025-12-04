@@ -1,0 +1,209 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bacteria Density Analyzer: Abstract &mdash; Bacteria Density Analyzer 0.0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=5b94cef0" />
+
+  
+    <link rel="shortcut icon" href="_static/icon.png"/>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=d45e8c67"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Bacteria Density Analyzer: User’s guide" href="user_guide.html" />
+    <link rel="prev" title="Introduction to “Bacteria Density Analyzer”" href="intro_install.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Bacteria Density Analyzer
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="intro_install.html">Introduction to “Bacteria Density Analyzer”</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Bacteria Density Analyzer: Abstract</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#user-provided-data">0. User provided data</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#a-images">A. Images</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#b-regions-of-interest">B. Regions of interest</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c-starting-points">C. Starting points</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#workflow-description">1. Workflow description</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#a-build-a-mask-of-filaments">A. Build a mask of filaments</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#b-skeletonize-filaments">B. Skeletonize filaments</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c-extract-medial-path">C. Extract medial path</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#d-measures">D. Measures</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="user_guide.html">Bacteria Density Analyzer: User’s guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Bacteria Density Analyzer</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Bacteria Density Analyzer: Abstract</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/abstract.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="bacteria-density-analyzer-abstract">
+<h1>Bacteria Density Analyzer: Abstract<a class="headerlink" href="#bacteria-density-analyzer-abstract" title="Link to this heading"></a></h1>
+<section id="user-provided-data">
+<h2>0. User provided data<a class="headerlink" href="#user-provided-data" title="Link to this heading"></a></h2>
+<section id="a-images">
+<h3>A. Images<a class="headerlink" href="#a-images" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>At first, the user is expected to provide several channels belonging to a 3D image.</p></li>
+<li><p>The mandatory channel is the one we will use to segment the filaments. During the tests and the development of this module, we used a nuclei staining (DAPI).</p></li>
+<li><p>The other channels are fluorescence channels corresponding to bacteria stains (for example GFP, RFP, etc.).</p></li>
+<li><p>The module can handle an arbitrary number of fluorescence channels at the same time.</p></li>
+<li><p>The image can contain several filaments, even if they are broken or partially segmented.</p></li>
+</ul>
+</section>
+<section id="b-regions-of-interest">
+<h3>B. Regions of interest<a class="headerlink" href="#b-regions-of-interest" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>As images contain several filaments, the user must indicate what part of the image belongs to which filament.</p></li>
+<li><p>To do so, the user must draw polygons around each filament using Napari’s <code class="code docutils literal notranslate"><span class="pre">Shapes</span></code> layer.</p></li>
+<li><p>The color associated to each polygon will define the filament’s ID.</p></li>
+<li><p>A filament can be broken into several parts, each part being surrounded by a polygon of the same color.</p></li>
+<li><p>On the example image below, there are two filaments/branches (the red and the green ones), the first being broken into three parts and the second being monolithic.</p></li>
+<li><p>On the example, the three regions of the red filament are adjacent, but in reality, breaking a filament should only be done if a part of it can’t be segmented (for example because of low signal-to-noise ratio), so the different parts can be far from each other.</p></li>
+<li><p>The plugin will by itself re-link the different chunks in the final output.</p></li>
+</ul>
+<img alt="_images/broken.png" class="align-center" src="_images/broken.png" />
+</section>
+<section id="c-starting-points">
+<h3>C. Starting points<a class="headerlink" href="#c-starting-points" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>As a filament can be broken in any number of parts, the user must provide for each branch (== each color) one single point that approximately corresponds to the start of the filament.</p></li>
+<li><p>From there, the plugin will rebuild the full filament by connecting all the different parts together.</p></li>
+<li><p>The starting points have to be placed inside the corresponding polygons.</p></li>
+<li><p>The exact location doesn’t matter as it is just a proximity indicator. The path of every filament will be processed and then, we will search for the closest point to the starting point provided by the user.</p></li>
+</ul>
+</section>
+</section>
+<section id="workflow-description">
+<h2>1. Workflow description<a class="headerlink" href="#workflow-description" title="Link to this heading"></a></h2>
+<section id="a-build-a-mask-of-filaments">
+<h3>A. Build a mask of filaments<a class="headerlink" href="#a-build-a-mask-of-filaments" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Everything starts by segmenting the filaments in 3D using the segmentation channel provided by the user.</p></li>
+<li><p>A binary mask is created and fixed, allowing us to know which pixels are part of the filaments and which are not.</p></li>
+<li><p>If a pixel is positive in the mask, its intensity will be used in the computation of the integrated intensity and density.</p></li>
+</ul>
+<img alt="_images/make_mask.png" class="align-center" src="_images/make_mask.png" />
+</section>
+<section id="b-skeletonize-filaments">
+<h3>B. Skeletonize filaments<a class="headerlink" href="#b-skeletonize-filaments" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>From the 3D binary mask, we compute a skeleton of the filaments.</p></li>
+<li><p>It allows to reduce the 3D structure of the filaments to a 1D path going through the center of the filaments.</p></li>
+<li><p>A skeleton is typically represented as a binary mask containing 1-pixel wide lines going through the center of the filaments.</p></li>
+<li><p>We will base ourselves on this skeleton to compute the length of the filaments and to extract the intensity values along them.</p></li>
+</ul>
+<img alt="_images/skeleton.png" class="align-center" src="_images/skeleton.png" />
+</section>
+<section id="c-extract-medial-path">
+<h3>C. Extract medial path<a class="headerlink" href="#c-extract-medial-path" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Depending on the mask and its level of details, the skeleton can contain small branches and loops that are not part of the real filaments.</p></li>
+<li><p>To avoid these artifacts, we extract a medial path going through the skeleton from one end to the other.</p></li>
+<li><p>To extract this path, we start by extracting the pixel corresponding to the starting point for each chunk.</p></li>
+<li><p>From this pixel that we consider as the root of the filament, we search for the longest path going through the skeleton.</p></li>
+<li><p>This way, we avoid small branches and loops that could be present in the skeleton.</p></li>
+</ul>
+<img alt="_images/medial.png" class="align-center" src="_images/medial.png" />
+</section>
+<section id="d-measures">
+<h3>D. Measures<a class="headerlink" href="#d-measures" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>We now have a 3D mask indicating which pixels belong to filaments, and a 1D path going through the center of each filament.</p></li>
+<li><p>The goal is to project (in some way) the 3D information onto a 1D object.</p></li>
+<li><p>To do so, we take each 3D coordinate from the mask and search the closest point on the 1D path.</p></li>
+<li><p>For each point of the 1D path, we create an accumulator that will store the integrated intensity (== the sum of all the intensities of the voxels that project onto this point).</p></li>
+<li><p>Using the same principle, we can extract the volume of each accumulator by counting the number of voxels that project onto each point of the 1D path.</p></li>
+<li><p>Finally, the density is computed by dividing the integrated intensity by the volume for each point of the 1D path.</p></li>
+<li><p>Exporting such values would result in rather noisy curves, so we bin the values according to a user-defined length (for example 1 micron).</p></li>
+<li><p>It basically means that we group the 1D points by chunks of 1 micron and gather the statistics by chunk.</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="intro_install.html" class="btn btn-neutral float-left" title="Introduction to “Bacteria Density Analyzer”" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="user_guide.html" class="btn btn-neutral float-right" title="Bacteria Density Analyzer: User’s guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Clément H. Benedetti.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

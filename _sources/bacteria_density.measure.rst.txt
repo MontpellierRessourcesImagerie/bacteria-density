@@ -1,0 +1,7 @@
+bacteria\_density.measure module
+================================
+
+.. automodule:: bacteria_density.measure
+   :members:
+   :undoc-members:
+   :show-inheritance:

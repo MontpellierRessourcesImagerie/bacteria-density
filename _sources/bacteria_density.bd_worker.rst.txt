@@ -1,0 +1,7 @@
+bacteria\_density.bd\_worker module
+===================================
+
+.. automodule:: bacteria_density.bd_worker
+   :members:
+   :undoc-members:
+   :show-inheritance:

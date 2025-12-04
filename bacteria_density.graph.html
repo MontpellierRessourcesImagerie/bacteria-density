@@ -1,0 +1,179 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>bacteria_density.graph module &mdash; Bacteria Density Analyzer 0.0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=5b94cef0" />
+
+  
+    <link rel="shortcut icon" href="_static/icon.png"/>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=d45e8c67"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Bacteria Density Analyzer
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="intro_install.html">Introduction to “Bacteria Density Analyzer”</a></li>
+<li class="toctree-l1"><a class="reference internal" href="abstract.html">Bacteria Density Analyzer: Abstract</a></li>
+<li class="toctree-l1"><a class="reference internal" href="user_guide.html">Bacteria Density Analyzer: User’s guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Bacteria Density Analyzer</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">bacteria_density.graph module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/bacteria_density.graph.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-bacteria_density.graph">
+<span id="bacteria-density-graph-module"></span><h1>bacteria_density.graph module<a class="headerlink" href="#module-bacteria_density.graph" title="Link to this heading"></a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="bacteria_density.graph.find_next_bbox">
+<span class="sig-prename descclassname"><span class="pre">bacteria_density.graph.</span></span><span class="sig-name descname"><span class="pre">find_next_bbox</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hint</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">leaves</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">used_bboxes</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/bacteria_density/graph.html#find_next_bbox"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#bacteria_density.graph.find_next_bbox" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="bacteria_density.graph.find_root">
+<span class="sig-prename descclassname"><span class="pre">bacteria_density.graph.</span></span><span class="sig-name descname"><span class="pre">find_root</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">leaves</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hint</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/bacteria_density/graph.html#find_root"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#bacteria_density.graph.find_root" title="Link to this definition"></a></dt>
+<dd><p>Among all leaf nodes, finds the one closest to the provided hint point.
+It will define the root of the graph traversal to find the longest path.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>leaves</strong> (<em>-</em>) – A list of leaf nodes, where each node is a tuple (z, y, x).</p></li>
+<li><p><strong>hint</strong> (<em>-</em>) – A 2D point (y, x) to guide the root selection.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The leaf node closest to the hint point.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>(tuple)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="bacteria_density.graph.get_leaves">
+<span class="sig-prename descclassname"><span class="pre">bacteria_density.graph.</span></span><span class="sig-name descname"><span class="pre">get_leaves</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bbox</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">graph</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/bacteria_density/graph.html#get_leaves"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#bacteria_density.graph.get_leaves" title="Link to this definition"></a></dt>
+<dd><p>Identifies leaf nodes in the graph, which are nodes with only one connection.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="bacteria_density.graph.longest_path_from">
+<span class="sig-prename descclassname"><span class="pre">bacteria_density.graph.</span></span><span class="sig-name descname"><span class="pre">longest_path_from</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">root</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">graph</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bbox</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/bacteria_density/graph.html#longest_path_from"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#bacteria_density.graph.longest_path_from" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="bacteria_density.graph.path_as_img">
+<span class="sig-prename descclassname"><span class="pre">bacteria_density.graph.</span></span><span class="sig-name descname"><span class="pre">path_as_img</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/bacteria_density/graph.html#path_as_img"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#bacteria_density.graph.path_as_img" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="bacteria_density.graph.run1">
+<span class="sig-prename descclassname"><span class="pre">bacteria_density.graph.</span></span><span class="sig-name descname"><span class="pre">run1</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/bacteria_density/graph.html#run1"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#bacteria_density.graph.run1" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="bacteria_density.graph.skeleton_to_undirected_graph">
+<span class="sig-prename descclassname"><span class="pre">bacteria_density.graph.</span></span><span class="sig-name descname"><span class="pre">skeleton_to_undirected_graph</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">skel</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/bacteria_density/graph.html#skeleton_to_undirected_graph"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#bacteria_density.graph.skeleton_to_undirected_graph" title="Link to this definition"></a></dt>
+<dd><p>Converts a 3D skeleton into an undirected graph representation.
+First pass: create edges for direct (6-face) neighbors only.
+Second pass: add diagonal edges (edge and corner) only when the two
+voxels are not already connected via a path of direct neighbors.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>skel</strong> (<em>-</em>) – A binary 3D numpy array representing the skeleton.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>A dictionary where keys are voxel coordinates (z, y, x) and</dt><dd><p>values are sets of neighboring voxel coordinates.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>(dict)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Clément H. Benedetti.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

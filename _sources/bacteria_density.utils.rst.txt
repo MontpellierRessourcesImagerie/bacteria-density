@@ -1,0 +1,7 @@
+bacteria\_density.utils module
+==============================
+
+.. automodule:: bacteria_density.utils
+   :members:
+   :undoc-members:
+   :show-inheritance:

@@ -1,0 +1,7 @@
+bacteria\_density.qt\_workers module
+====================================
+
+.. automodule:: bacteria_density.qt_workers
+   :members:
+   :undoc-members:
+   :show-inheritance:
