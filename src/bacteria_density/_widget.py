@@ -146,7 +146,7 @@ class BacteriaDensityWidget(QWidget):
         self.sb_mask_factor.setDecimals(2)
         self.sb_mask_factor.setRange(0.01, 10.0)
         self.sb_mask_factor.setSingleStep(0.01)
-        self.sb_mask_factor.setValue(1.00)
+        self.sb_mask_factor.setValue(0.9)
         mask_line.addWidget(self.sb_mask_factor)
         self.btn_mask = QPushButton("Skeletonize")
         self.btn_mask.clicked.connect(self._make_masks)
@@ -664,8 +664,8 @@ class BacteriaDensityWidget(QWidget):
         self.selected_folder = path
         self.model = BacteriaDensityWorker()
         self.model.set_working_dir(path)
-        self.model.recover()
-        self.recover_ui_from_model()
+        if self.model.recover():
+            self.recover_ui_from_model()
 
     # ---------------- PUBLIC ACCESSORS ----------------
 

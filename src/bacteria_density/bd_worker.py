@@ -6,10 +6,18 @@ import json
 
 import pandas as pd
 from shapely.geometry import Point
-from scipy.ndimage import gaussian_filter
-from skimage.morphology import (binary_closing, ball,
-                                binary_opening, skeletonize)
-
+from skimage.filters import threshold_otsu
+from scipy.ndimage import (
+    gaussian_filter,
+    binary_fill_holes,
+    affine_transform
+)
+from skimage.morphology import (
+    binary_closing, 
+    ball,
+    binary_opening, 
+    skeletonize
+)
 import bacteria_density.utils as utils
 import bacteria_density.process as process
 import bacteria_density.graph as graph
@@ -27,7 +35,7 @@ class BacteriaDensityWorker(object):
         self.calibration     = (1.0, 1.0, 1.0)
         self.unit            = "pixel"
         self.binning_dist    = 10.0
-        self.t_factor        = 1.0
+        self.t_factor        = 0.9
         self.merge_csv       = True
         self.to_process      = {k: False for k in measures.get_functions().keys()}
         self.processed       = set([])
@@ -345,21 +353,48 @@ class BacteriaDensityWorker(object):
                         return False
         return True
     
-    def _make_mask_and_skeleton(self, image, sigma=10.0):
+    def _make_mask_and_skeleton(self, image, sigma=15.0, scale=0.5):
+        print("    Downscaling image...")
+        original_shape = image.shape
+        scale_matrix = np.array([
+            [1, 0, 0],
+            [0, 1/scale, 0],
+            [0, 0, 1/scale]
+        ])
+        new_shape = (original_shape[0], int(original_shape[1] * scale), int(original_shape[2] * scale))
+        downscaled_image = affine_transform(image, scale_matrix, output_shape=new_shape, order=1)
+
         print("    Gaussian smoothing...")
-        smoothed = gaussian_filter(image, sigma)
-        t = np.mean(smoothed) * self.t_factor
+        smoothed = gaussian_filter(downscaled_image, sigma)
+
         print("    Thresholding...")
+        t = threshold_otsu(smoothed) * self.t_factor
         mask = (smoothed >= t).astype(np.uint8)
-        k = ball(7)
+
         print("    Morphological closing...")
+        k = ball(7)
         closed = binary_closing(mask, footprint=k)
+
         print("    Morphological opening...")
         opened = binary_opening(closed, footprint=k)
+        print("    Filling holes...")
+        for i in range(opened.shape[0]):
+            opened[i] = binary_fill_holes(opened[i])
+        
         print("    Keeping largest component...")
         largest = process.keep_largest(opened)
+
+        print("    Upscaling mask back to original size...")
+        inv_scale_matrix = np.array([
+            [1, 0, 0],
+            [0, scale, 0],
+            [0, 0, scale]
+        ])
+        largest = affine_transform(largest.astype(np.uint8), inv_scale_matrix, output_shape=original_shape, order=0)
+
         print("    Skeletonization...")
         skeleton = skeletonize(largest)
+
         print("    Mask and skeleton generated.")
         return skeleton.astype(np.uint8), largest.astype(np.uint8)
 

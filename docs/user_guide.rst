@@ -68,3 +68,12 @@ Bacteria Density Analyzer: User's guide
 +-----------------------+------------------------------------------------------------------------------------+
 | Local width           | Local width measured along the skeleton.                                           |
 +-----------------------+------------------------------------------------------------------------------------+
+
+6. Optional
+===========
+
+- If you need so, you can get an approximation of the discarded volume of organ on your image.
+- To do that, add a new shape layer and draw a polygon over each area that you didn't include in any filament.
+- In the "Discarded polygons" dropdown menu from the plugin's tab, choose the shape layer containing the polygons that you just drew.
+- If you click the "Process discarded volume" button, the discarded volume should be displayed right beneath it.
+- It is an approximation in the way that the area you just indicated cannot be segmented. To estimate the volume, an artificial mask is built. It is as deep (== Z-axis == nb of slices) as the whole stack and has the polygons shape on every slice.
