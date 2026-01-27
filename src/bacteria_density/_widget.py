@@ -140,19 +140,41 @@ class BacteriaDensityWidget(QWidget):
         self.btn_chunks.clicked.connect(self.export_crops)
         set_v.addWidget(self.btn_chunks)
 
-        mask_line = QHBoxLayout()
-        self.sb_mask_factor = QDoubleSpinBox()
-        self.sb_mask_factor.setPrefix("x")
-        self.sb_mask_factor.setDecimals(2)
-        self.sb_mask_factor.setRange(0.01, 10.0)
-        self.sb_mask_factor.setSingleStep(0.01)
-        self.sb_mask_factor.setValue(0.9)
-        mask_line.addWidget(self.sb_mask_factor)
+        log_h_layout = QHBoxLayout()
+        log_h_layout.addWidget(QLabel("Log factor:"))
+        self.sb_log_factor = QDoubleSpinBox()
+        self.sb_log_factor.setPrefix("x")
+        self.sb_log_factor.setDecimals(1)
+        self.sb_log_factor.setRange(1.0, 1000.0)
+        self.sb_log_factor.setSingleStep(1.0)
+        self.sb_log_factor.setValue(150.0)
+        log_h_layout.addWidget(self.sb_log_factor)
+        set_v.addLayout(log_h_layout)
+
+        mask_factor_h_layout = QHBoxLayout()
+        mask_factor_h_layout.addWidget(QLabel("Threshold factor:"))
+        self.sb_threshold_factor = QDoubleSpinBox()
+        self.sb_threshold_factor.setPrefix("x")
+        self.sb_threshold_factor.setDecimals(2)
+        self.sb_threshold_factor.setRange(0.01, 10.0)
+        self.sb_threshold_factor.setSingleStep(0.01)
+        self.sb_threshold_factor.setValue(0.7)
+        mask_factor_h_layout.addWidget(self.sb_threshold_factor)
+        set_v.addLayout(mask_factor_h_layout)
+
+        kernel_size_h_layout = QHBoxLayout()
+        kernel_size_h_layout.addWidget(QLabel("Kernel size:"))
+        self.sb_kernel_size = QDoubleSpinBox()
+        self.sb_kernel_size.setDecimals(0)
+        self.sb_kernel_size.setRange(1, 20)
+        self.sb_kernel_size.setSingleStep(1)
+        self.sb_kernel_size.setValue(6)
+        kernel_size_h_layout.addWidget(self.sb_kernel_size)
+        set_v.addLayout(kernel_size_h_layout)
+
         self.btn_mask = QPushButton("Skeletonize")
         self.btn_mask.clicked.connect(self._make_masks)
-        mask_line.addWidget(self.btn_mask)
-        set_v.addLayout(mask_line)
-
+        set_v.addWidget(self.btn_mask)
         self.btn_skeletons = QPushButton("Make medial path")
         self.btn_skeletons.clicked.connect(self._make_medial_path)
         set_v.addWidget(self.btn_skeletons)
@@ -271,8 +293,12 @@ class BacteriaDensityWidget(QWidget):
 
     def _make_masks(self):
         # Set the mask factor
-        mask_factor = self.sb_mask_factor.value()
+        mask_factor = self.sb_threshold_factor.value()
         self.model.set_threshold_factor(mask_factor)
+        log_factor = self.sb_log_factor.value()
+        self.model.set_log_factor(log_factor)
+        kernel_size = int(self.sb_kernel_size.value())
+        self.model.set_kernel_size(kernel_size)
         self.qt_worker = QtMakeMasks(self.model)
         self.qt_thread = None
         self.qt_thread = QThread()
@@ -334,6 +360,8 @@ class BacteriaDensityWidget(QWidget):
                     continue
                 path_name = f"medial-{bbox_to_str(bbox)}"
                 data = np.load(path_path)
+                median_z = np.median(data[:, 0])
+                data[:, 0] = median_z # napari bugs if we ask to display a path having points on different Zs.
                 paths.append(data)
                 layer = None
                 if path_name in self.viewer.layers:
@@ -678,7 +706,7 @@ class BacteriaDensityWidget(QWidget):
         self.cb_seg_channel.setCurrentText(seg_name)
         # Recover the measurement channels
         for name, data in self.model.get_measurement_channels().items():
-            l = self.viewer.add_image(data, name=name)
+            l = self.viewer.add_image(data, name=name, blending="additive")
             l.contrast_limits = (np.min(data), np.max(data))
             row = self.measure_rows[-1]
             row['combo'].setCurrentText(name)
@@ -697,12 +725,14 @@ class BacteriaDensityWidget(QWidget):
         points = []
         for str_color, collection in self.model.chunks.items():
             color = utils.str_to_clr(str_color)
+            print(str_color, color)
             for poly in collection['polygons']:
                 poly = utils.from_polygon(poly)
                 polygons.append(poly)
             if collection['start'] is not None:
                 points.append(collection['start'])
-            colors += [color for _ in polygons]
+            colors += [color for _ in collection['polygons']]
+        print(colors)
         self.viewer.add_shapes(polygons, shape_type='polygon', edge_color=colors, face_color='transparent', edge_width=20, name="Areas")
         self.viewer.add_points(points, name="Hint Points", size=20, face_color="cyan")
         return True

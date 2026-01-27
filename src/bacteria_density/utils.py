@@ -66,7 +66,7 @@ def make_crop(image, shape, bbox):
     # apply mask to image (broadcasts over leading dims)
     masked = mask2d[np.newaxis, ...] * image
     xmin, ymin, xmax, ymax = bbox
-    return masked[:, ymin:ymax, xmin:xmax]
+    return masked[:, ymin:ymax, xmin:xmax], mask2d[ymin:ymax, xmin:xmax]
 
 def get_binned_distances(bin_length, distances):
     total_length = distances[-1]
@@ -128,7 +128,10 @@ def str_to_clr(clr_str):
     parts = clr_str.split("-")
     if len(parts) not in [3, 4]:
         raise ValueError("Color string must have three or four components")
-    return tuple(int(p) / 255.0 for p in parts)
+    color = list(int(p) for p in parts)
+    if len(color) == 3:
+        color.append(255)
+    return color
 
 def bbox_to_str(bbox):
     return "BB-" + "-".join([str(int(c)) for c in bbox])

@@ -35,10 +35,13 @@ class BacteriaDensityWorker(object):
         self.calibration     = (1.0, 1.0, 1.0)
         self.unit            = "pixel"
         self.binning_dist    = 10.0
-        self.t_factor        = 0.9
+        self.t_factor        = 0.7
+        self.log_factor      = 150.0
+        self.kernel_size     = 6
         self.merge_csv       = True
         self.to_process      = {k: False for k in measures.get_functions().keys()}
         self.processed       = set([])
+        self.nuclei_range    = None
 
     def state_as_json(self):
         state = {}
@@ -134,6 +137,18 @@ class BacteriaDensityWorker(object):
             raise ValueError("Threshold factor must be positive")
         self.t_factor = factor
         self.info(f"Threshold factor set to {factor}")
+
+    def set_log_factor(self, factor):
+        if factor <= 0:
+            raise ValueError("Log factor must be positive")
+        self.log_factor = factor
+        self.info(f"Log factor set to {factor}")
+
+    def set_kernel_size(self, size):
+        if size <= 0 or not isinstance(size, int):
+            raise ValueError("Kernel size must be a positive integer")
+        self.kernel_size = size
+        self.info(f"Kernel size set to {size}")
 
     def save_original(self, name, image):
         if self.working_dir is None:
@@ -325,11 +340,13 @@ class BacteriaDensityWorker(object):
                 (xmin, ymin, xmax, ymax) = bbox
                 region_folder = os.path.join(main_folder, utils.bbox_to_str((xmin, ymin, xmax, ymax)))
                 utils.reset_folder(region_folder)
-                seg_crop = utils.make_crop(self.segmentation_ch, poly, bbox)
+                self.nuclei_range = (np.min(self.segmentation_ch), np.max(self.segmentation_ch))
+                seg_crop, poly_mask = utils.make_crop(self.segmentation_ch, poly, bbox)
                 tiff.imwrite(os.path.join(region_folder, "segmentation_ch.tif"), seg_crop)
+                tiff.imwrite(os.path.join(region_folder, "poly_mask.tif"), poly_mask)
                 self.info(f"Exported segmentation channel for region '{id_str}' bbox {bbox}")
                 for ch_name, ch_data in self.measurement_ch.items():
-                    meas_crop = utils.make_crop(ch_data, poly, bbox)
+                    meas_crop, _ = utils.make_crop(ch_data, poly, bbox)
                     tiff.imwrite(os.path.join(region_folder, f"{ch_name}.tif"), meas_crop)
                     self.info(f"Exported measurement channel '{ch_name}' for region '{id_str}' bbox {bbox}")
     
@@ -353,30 +370,54 @@ class BacteriaDensityWorker(object):
                         return False
         return True
     
-    def _make_mask_and_skeleton(self, image, sigma=15.0, scale=0.5):
+    def _make_mask_and_skeleton(self, image, poly_mask, sigma=8.0, scale=0.5):
         print("    Downscaling image...")
         original_shape = image.shape
         scale_matrix = np.array([
-            [1, 0, 0],
-            [0, 1/scale, 0],
-            [0, 0, 1/scale]
+            [1,       0,       0],
+            [0, 1/scale,       0],
+            [0,       0, 1/scale]
         ])
-        new_shape = (original_shape[0], int(original_shape[1] * scale), int(original_shape[2] * scale))
-        downscaled_image = affine_transform(image, scale_matrix, output_shape=new_shape, order=1)
+        new_shape = (
+            original_shape[0], 
+            int(original_shape[1] * scale), 
+            int(original_shape[2] * scale)
+        )
+        downscaled_image = affine_transform(
+            image, 
+            scale_matrix, 
+            output_shape=new_shape, 
+            order=1
+        )
 
         print("    Gaussian smoothing...")
-        smoothed = gaussian_filter(downscaled_image, sigma)
+        smoothed = gaussian_filter(
+            downscaled_image.astype(np.float32), 
+            (sigma/2, sigma, sigma)
+        )
+
+        print("    Normalizing intensities...")
+        if self.nuclei_range is None:
+            raise ValueError("Nuclei intensity range not set")
+        smoothed -= self.nuclei_range[0] * 1.5
+        smoothed  = np.maximum(smoothed, 0.0)
+        smoothed /= (self.nuclei_range[1] - self.nuclei_range[0])
+        smoothed *= self.log_factor
+        smoothed += 1.0
+        smoothed = np.log(smoothed)
 
         print("    Thresholding...")
         t = threshold_otsu(smoothed) * self.t_factor
+        # t = np.mean(smoothed) * self.t_factor
         mask = (smoothed >= t).astype(np.uint8)
 
         print("    Morphological closing...")
-        k = ball(7)
+        k = ball(self.kernel_size)
         closed = binary_closing(mask, footprint=k)
 
         print("    Morphological opening...")
         opened = binary_opening(closed, footprint=k)
+
         print("    Filling holes...")
         for i in range(opened.shape[0]):
             opened[i] = binary_fill_holes(opened[i])
@@ -390,8 +431,18 @@ class BacteriaDensityWorker(object):
             [0, scale, 0],
             [0, 0, scale]
         ])
-        largest = affine_transform(largest.astype(np.uint8), inv_scale_matrix, output_shape=original_shape, order=0)
+        largest = affine_transform(
+            largest.astype(np.uint8), 
+            inv_scale_matrix, 
+            output_shape=original_shape, 
+            order=0
+        )
 
+        print("    Multiply each slice by the mask polygon...")
+        poly_mask = (poly_mask > 0).astype(np.uint8)
+        for i in range(largest.shape[0]):
+            largest[i] *= poly_mask
+        
         print("    Skeletonization...")
         skeleton = skeletonize(largest)
 
@@ -409,8 +460,13 @@ class BacteriaDensityWorker(object):
                 if not os.path.isfile(seg_path):
                     self.error(f"Segmentation channel file not found for region '{id_str}' bbox {bbox}")
                     continue
+                mask_path = os.path.join(region_folder, "poly_mask.tif")
+                if not os.path.isfile(mask_path):
+                    self.error(f"Poly mask file not found for region '{id_str}' bbox {bbox}")
+                    continue
                 seg_crop = tiff.imread(seg_path)
-                skeleton, mask = self._make_mask_and_skeleton(seg_crop)
+                poly_mask = tiff.imread(mask_path)
+                skeleton, mask = self._make_mask_and_skeleton(seg_crop, poly_mask)
                 tiff.imwrite(os.path.join(region_folder, "mask.tif"), mask)
                 tiff.imwrite(os.path.join(region_folder, "skeleton.tif"), skeleton)
                 self.info(f"Generated mask and skeleton for region '{id_str}' bbox {bbox}")
@@ -703,192 +759,175 @@ class BacteriaDensityWorker(object):
 def launch_analysis_workflow():
     worker = BacteriaDensityWorker()
     
-    nuclei_path = "/home/clement/Documents/projects/2119-bacteria-density/small-data/nuclei.tif"
-    bactos_path = "/home/clement/Documents/projects/2119-bacteria-density/small-data/bactos.tif"
+    nuclei_path = "/home/clement/Downloads/bacteria-testing-crops/Nuclei.tif"
+    bactos_path = "/home/clement/Downloads/bacteria-testing-crops/Rick.tif"
 
     nuclei = tiff.imread(nuclei_path)
     bactos = tiff.imread(bactos_path)
 
-    worker.set_working_dir("/home/clement/Documents/projects/2119-bacteria-density/small-data/output")
+    worker.set_working_dir("/home/clement/Downloads/bacteria-testing-crops/wd")
 
     worker.set_segmentation_channel(nuclei)
-    worker.add_measurement_channel("RFP", bactos)
-
-    worker.set_calibration((1.52, 0.325, 0.325), "µm")
-
+    worker.add_measurement_channel("RICK", bactos)
+    
     worker.add_region("id_001", 
         np.array([
-            [   8.      ,  984.3847  ,  -24.18498 ],
-            [   8.      , 1475.1365  ,  -29.793571],
-            [   8.      , 1727.5231  ,  320.74338 ],
-            [   8.      , 2361.294   ,  317.9391  ],
-            [   8.      , 2832.4155  ,  472.17535 ],
-            [   8.      , 2905.3271  , 1080.7075  ],
-            [   8.      , 2386.5325  , 1686.4353  ],
-            [   8.      , 1346.1388  , 1753.7384  ],
-            [   8.      ,  922.6902  , 1770.5642  ],
-            [   8.      ,  474.0029  , 1686.4353  ],
-            [   8.      ,  782.4754  , 1321.877   ],
-            [   8.      , 1298.4658  , 1215.3137  ],
-            [   8.      , 1850.9121  , 1091.9247  ],
-            [   8.      , 2055.6257  ,  791.86505 ],
-            [   8.      , 1340.5303  ,  783.45215 ],
-            [   8.      , 1006.8191  ,  200.15868 ]
+            [   6.     ,  845.9978 , 1561.8286 ],
+            [   6.     , 1462.5442 , 1432.6123 ],
+            [   6.     , 2603.3396 , 1129.877  ],
+            [   6.     , 3371.2537 ,  742.228  ],
+            [   6.     , 4142.8594 ,  546.5577 ],
+            [   6.     , 4441.903  ,  734.8443 ],
+            [   6.     , 4312.6865 ,  889.9038 ],
+            [   6.     , 4113.324  ,  827.1416 ],
+            [   6.     , 3928.7297 ,  996.96875],
+            [   6.     , 3278.9563 , 1355.0825 ],
+            [   6.     , 2481.507  , 2093.4614 ],
+            [   6.     , 1311.1765 , 2252.213  ],
+            [   6.     ,  683.55444, 1912.5586 ]
         ])
     )
 
     worker.add_region("id_002", 
         np.array([
-            [   8.       ,  485.2201   , 1807.02     ],
-            [   8.       ,  510.45874  , 1792.9985   ],
-            [   8.       ,  538.5017   , 1787.39     ],
-            [   8.       ,  574.9575   , 1784.5857   ],
-            [   8.       ,  614.21765  , 1784.5857   ],
-            [   8.       ,  656.2821   , 1781.7814   ],
-            [   8.       ,  726.3895   , 1781.7814   ],
-            [   8.       ,  785.2797   , 1787.39     ],
-            [   8.       ,  818.9313   , 1787.39     ],
-            [   8.       ,  852.5828   , 1790.1943   ],
-            [   8.       ,  953.5375   , 1807.02     ],
-            [   8.       , 1037.6663   , 1832.2587   ],
-            [   8.       , 1110.578    , 1871.5189   ],
-            [   8.       , 1147.0338   , 1899.5618   ],
-            [   8.       , 1177.8811   , 1916.3876   ],
-            [   8.       , 1208.7284   , 1938.822    ],
-            [   8.       , 1245.1842   , 1961.2563   ],
-            [   8.       , 1276.0315   , 1989.2993   ],
-            [   8.       , 1301.2701   , 2014.538    ],
-            [   8.       , 1320.9001   , 2039.7766   ],
-            [   8.       , 1351.7474   , 2076.2324   ],
-            [   8.       , 1376.9861   , 2121.101    ],
-            [   8.       , 1399.4204   , 2177.187    ],
-            [   8.       , 1407.8334   , 2205.23     ],
-            [   8.       , 1413.4419   , 2236.0774   ],
-            [   8.       , 1416.2462   , 2264.1204   ],
-            [   8.       , 1416.2462   , 2510.8982   ],
-            [   8.       , 1421.8549   , 2552.9626   ],
-            [   8.       , 1430.2677   , 2595.027    ],
-            [   8.       , 1441.4849   , 2637.0916   ],
-            [   8.       , 1461.115    , 2690.3733   ],
-            [   8.       , 1477.9407   , 2743.6548   ],
-            [   8.       , 1508.788    , 2808.1536   ],
-            [   8.       , 1542.4396   , 2875.4568   ],
-            [   8.       , 1578.8954   , 2942.7598   ],
-            [   8.       , 1609.7427   , 3015.6714   ],
-            [   8.       , 1646.1985   , 3085.7788   ],
-            [   8.       , 1682.6543   , 3144.6692   ],
-            [   8.       , 1716.3059   , 3195.1465   ],
-            [   8.       , 1780.8047   , 3284.8838   ],
-            [   8.       , 1825.6733   , 3357.7957   ],
-            [   8.       , 1850.9121   , 3402.6643   ],
-            [   8.       , 1867.7378   , 3441.9243   ],
-            [   8.       , 1887.3679   , 3481.1846   ],
-            [   8.       , 1901.3894   , 3517.6404   ],
-            [   8.       , 1926.628    , 3573.7263   ],
-            [   8.       , 1943.4539   , 3618.595    ],
-            [   8.       , 1960.2795   , 3669.0723   ],
-            [   8.       , 1974.301    , 3722.354    ],
-            [   8.       , 1985.5182   , 3792.4614   ],
-            [   8.       , 1991.1268   , 3837.33     ],
-            [   8.       , 1999.5397   , 3879.3945   ],
-            [   8.       , 2005.1483   , 3927.0676   ],
-            [   8.       , 2007.9526   , 3974.7405   ],
-            [   8.       , 2007.9526   , 4095.3252   ],
-            [   8.       , 1996.7355   , 4142.9985   ],
-            [   8.       , 1977.1053   , 4210.3013   ],
-            [   8.       , 1963.0839   , 4243.953    ],
-            [   8.       , 1951.8667   , 4274.8003   ],
-            [   8.       , 1932.2366   , 4314.0605   ],
-            [   8.       , 1915.4109   , 4342.1035   ],
-            [   8.       , 1901.3894   , 4367.342    ],
-            [   8.       , 1878.955    , 4400.9937   ],
-            [   8.       , 1848.1078   , 4443.058    ],
-            [   8.       , 1825.6733   , 4468.2964   ],
-            [   8.       , 1797.6305   , 4504.7524   ],
-            [   8.       , 1766.7832   , 4538.404    ],
-            [   8.       , 1688.263    , 4611.316    ],
-            [   8.       , 1665.8285   , 4633.75     ],
-            [   8.       , 1595.7212   , 4689.836    ],
-            [   8.       , 1567.6782   , 4706.6616   ],
-            [   8.       , 1545.2438   , 4726.292    ],
-            [   8.       , 1497.5708   , 4757.139    ],
-            [   8.       , 1455.5063   , 4779.573    ],
-            [   8.       , 1368.5732   , 4832.855    ],
-            [   8.       , 1323.7045   , 4855.2896   ],
-            [   8.       , 1270.4229   , 4877.7236   ],
-            [   8.       , 1233.967    , 4894.5493   ],
-            [   8.       , 1169.4683   , 4919.788    ],
-            [   8.       , 1121.7952   , 4936.614    ],
-            [   8.       , 1085.3394   , 4947.831    ],
-            [   8.       , 1040.4706   , 4959.0483   ],
-            [   8.       , 1001.21045  , 4967.4614   ],
-            [   8.       ,  959.14606  , 4978.678    ],
-            [   8.       ,  922.6902   , 4989.8955   ],
-            [   8.       ,  880.6258   , 4998.3086   ],
-            [   8.       ,  816.12695  , 5017.9385   ],
-            [   8.       ,  737.6067   , 5043.1772   ],
-            [   8.       ,  628.23914  , 5079.6333   ],
-            [   8.       ,  549.7189   , 5102.0674   ],
-            [   8.       ,  474.0029   , 5127.306    ],
-            [   8.       ,  375.85254  , 5158.1533   ],
-            [   8.       ,  345.0053   , 5169.3706   ],
-            [   8.       ,  314.15805  , 5177.783    ],
-            [   8.       ,  252.46355  , 5189.0005   ],
-            [   8.       ,  193.57333  , 5194.6094   ],
-            [   8.       ,   44.945667 , 5194.6094   ],
-            [   8.       ,   16.90271  , 5189.0005   ],
-            [   8.       ,  -19.553133 , 5169.3706   ],
-            [   8.       ,  -50.400383 , 5132.9146   ],
-            [   8.       ,  -67.22616  , 5102.0674   ],
-            [   8.       , -103.682    , 5015.1343   ],
-            [   8.       , -114.899185 , 4967.4614   ],
-            [   8.       , -120.507774 , 4911.3755   ],
-            [   8.       , -120.507774 , 4832.855    ],
-            [   8.       , -123.31207  , 4793.5947   ],
-            [   8.       , -123.31207  , 4748.726    ],
-            [   8.       , -117.70348  , 4712.2705   ],
-            [   8.       , -100.87771  , 4636.554    ],
-            [   8.       ,  -95.26911  , 4600.0986   ],
-            [   8.       ,  -75.639046 , 4513.1655   ],
-            [   8.       ,  -64.42186  , 4471.101    ],
-            [   8.       ,  -50.400383 , 4431.841    ],
-            [   8.       ,  -27.966019 , 4364.5376   ],
-            [   8.       ,   -5.5316544, 4305.6475   ],
-            [   8.       ,   11.294119 , 4243.953    ],
-            [   8.       ,   36.53278  , 4168.237    ],
-            [   8.       ,   53.358555 , 4078.4995   ],
-            [   8.       ,   75.792915 , 3971.9363   ],
-            [   8.       ,  101.03158  , 3809.287    ],
-            [   8.       ,  109.444466 , 3663.4639   ],
-            [   8.       ,  120.66165  , 3526.0532   ],
-            [   8.       ,  140.29172  , 3405.4685   ],
-            [   8.       ,  168.33467  , 3169.9077   ],
-            [   8.       ,  185.16045  , 2990.4329   ],
-            [   8.       ,  201.98622  , 2869.8481   ],
-            [   8.       ,  241.24637  , 2687.5688   ],
-            [   8.       ,  288.91937  , 2496.8767   ],
-            [   8.       ,  305.74515  , 2446.3994   ],
-            [   8.       ,  316.96234  , 2415.5522   ],
-            [   8.       ,  328.17953  , 2370.6836   ],
-            [   8.       ,  336.5924   , 2331.4233   ],
-            [   8.       ,  339.3967   , 2303.3804   ],
-            [   8.       ,  345.0053   , 2264.1204   ],
-            [   8.       ,  378.65686  , 2196.8171   ]
+            [6.0000000e+00, 5.3314751e+03, 1.3887511e+03],
+            [6.0000000e+00, 5.5446821e+03, 1.5234081e+03],
+            [6.0000000e+00, 5.8532710e+03, 1.5290188e+03],
+            [6.0000000e+00, 6.9866333e+03, 1.2540941e+03],
+            [6.0000000e+00, 8.4229746e+03, 9.0061969e+02],
+            [6.0000000e+00, 9.6629404e+03, 7.5474133e+02],
+            [6.0000000e+00, 1.1458366e+04, 6.0886298e+02],
+            [6.0000000e+00, 1.2400965e+04, 6.1447369e+02],
+            [6.0000000e+00, 1.2462683e+04, 7.8840558e+02],
+            [6.0000000e+00, 1.2451461e+04, 1.0352766e+03],
+            [6.0000000e+00, 1.1654741e+04, 1.4111940e+03],
+            [6.0000000e+00, 9.9490859e+03, 1.5514615e+03],
+            [6.0000000e+00, 8.6137383e+03, 1.9217682e+03],
+            [6.0000000e+00, 6.9080835e+03, 2.1630286e+03],
+            [6.0000000e+00, 5.5222393e+03, 1.9329896e+03],
+            [6.0000000e+00, 5.1912075e+03, 1.5682937e+03]
         ])
     )
 
-    worker.add_region("id_003",
+    worker.add_region("id_002", 
         np.array([
-            [   8.      , -109.290596, -296.20166 ],
-            [   8.      , -109.290596, 1187.27    ],
-            [   8.      ,  689.93353 , 1187.27    ],
-            [   8.      ,  689.93353 , -296.20166 ]
+            [6.00000000e+00, 1.26246621e+04, 6.08350708e+02],
+            [6.00000000e+00, 1.24363750e+04, 8.07713013e+02],
+            [6.00000000e+00, 1.24289912e+04, 9.40621216e+02],
+            [6.00000000e+00, 1.28314082e+04, 1.17321057e+03],
+            [6.00000000e+00, 1.42527871e+04, 1.07722131e+03],
+            [6.00000000e+00, 1.54120420e+04, 1.71961096e+03],
+            [6.00000000e+00, 1.57184697e+04, 1.74545422e+03],
+            [6.00000000e+00, 1.57332373e+04, 1.64946497e+03],
+            [6.00000000e+00, 1.56593994e+04, 1.59777844e+03],
+            [6.00000000e+00, 1.53972744e+04, 1.21751331e+03],
+            [6.00000000e+00, 1.49874746e+04, 8.85242798e+02],
+            [6.00000000e+00, 1.44299980e+04, 4.68058716e+02],
+            [6.00000000e+00, 1.35107168e+04, 4.45907349e+02],
+            [6.00000000e+00, 1.29089375e+04, 4.12680298e+02]
         ])
     )
 
-    worker.set_starting_hint("id_001", [8.0, 1220.98960248, -6.11470609])
-    worker.set_starting_hint("id_002", [8.0, 748.9657104  , 1817.38811913])
-    worker.set_starting_hint("id_003", [8.0, 426.00199476 , -60.77010412])
+    worker.add_region("id_002", 
+        np.array([
+            [6.0000000e+00, 1.5684020e+04, 1.6843350e+03],
+            [6.0000000e+00, 1.5691800e+04, 1.8269684e+03],
+            [6.0000000e+00, 1.5927793e+04, 2.1031587e+03],
+            [6.0000000e+00, 1.6270113e+04, 2.2756155e+03],
+            [6.0000000e+00, 1.6782297e+04, 2.4260288e+03],
+            [6.0000000e+00, 1.7107762e+04, 2.7320425e+03],
+            [6.0000000e+00, 1.7230943e+04, 2.1368721e+03],
+            [6.0000000e+00, 1.7212791e+04, 1.9410752e+03],
+            [6.0000000e+00, 1.7059785e+04, 1.9657119e+03],
+            [6.0000000e+00, 1.6954754e+04, 2.0214686e+03],
+            [6.0000000e+00, 1.6879547e+04, 2.0499954e+03],
+            [6.0000000e+00, 1.6787484e+04, 2.0655552e+03],
+            [6.0000000e+00, 1.6729135e+04, 2.0940820e+03],
+            [6.0000000e+00, 1.6642258e+04, 2.0901919e+03],
+            [6.0000000e+00, 1.6535930e+04, 2.0344353e+03],
+            [6.0000000e+00, 1.6472395e+04, 2.0033152e+03],
+            [6.0000000e+00, 1.6382924e+04, 2.0097986e+03],
+            [6.0000000e+00, 1.6280487e+04, 1.9994252e+03],
+            [6.0000000e+00, 1.6270113e+04, 2.0409186e+03],
+            [6.0000000e+00, 1.6307717e+04, 2.0564785e+03],
+            [6.0000000e+00, 1.6384221e+04, 2.0616653e+03],
+            [6.0000000e+00, 1.6455537e+04, 2.0811152e+03],
+            [6.0000000e+00, 1.6541117e+04, 2.1083452e+03],
+            [6.0000000e+00, 1.6612434e+04, 2.1303887e+03],
+            [6.0000000e+00, 1.6681158e+04, 2.1485420e+03],
+            [6.0000000e+00, 1.6753771e+04, 2.1433552e+03],
+            [6.0000000e+00, 1.6810824e+04, 2.1264985e+03],
+            [6.0000000e+00, 1.6884734e+04, 2.1329819e+03],
+            [6.0000000e+00, 1.6949568e+04, 2.1342786e+03],
+            [6.0000000e+00, 1.7011807e+04, 2.0850054e+03],
+            [6.0000000e+00, 1.7071455e+04, 2.0668521e+03],
+            [6.0000000e+00, 1.7014400e+04, 2.1316853e+03],
+            [6.0000000e+00, 1.7002730e+04, 2.1978154e+03],
+            [6.0000000e+00, 1.7024773e+04, 2.2639453e+03],
+            [6.0000000e+00, 1.7031258e+04, 2.3534155e+03],
+            [6.0000000e+00, 1.7029961e+04, 2.4428855e+03],
+            [6.0000000e+00, 1.7015697e+04, 2.3884255e+03],
+            [6.0000000e+00, 1.7000137e+04, 2.2937688e+03],
+            [6.0000000e+00, 1.6963830e+04, 2.1939253e+03],
+            [6.0000000e+00, 1.6893811e+04, 2.1511353e+03],
+            [6.0000000e+00, 1.6800451e+04, 2.1381687e+03],
+            [6.0000000e+00, 1.6720057e+04, 2.1511353e+03],
+            [6.0000000e+00, 1.6672080e+04, 2.1563220e+03],
+            [6.0000000e+00, 1.6568348e+04, 2.1277954e+03],
+            [6.0000000e+00, 1.6487953e+04, 2.1031587e+03],
+            [6.0000000e+00, 1.6402373e+04, 2.0811152e+03],
+            [6.0000000e+00, 1.6323277e+04, 2.0707419e+03],
+            [6.0000000e+00, 1.6271410e+04, 2.0551819e+03],
+            [6.0000000e+00, 1.6227323e+04, 2.0072052e+03],
+            [6.0000000e+00, 1.6106733e+04, 1.9345918e+03],
+            [6.0000000e+00, 1.5990033e+04, 1.8710552e+03],
+            [6.0000000e+00, 1.5905750e+04, 1.7802883e+03],
+            [6.0000000e+00, 1.5838323e+04, 1.7050817e+03],
+            [6.0000000e+00, 1.5763116e+04, 1.6674783e+03]
+        ])
+    )
+
+    worker.add_region("id_002", 
+        np.array([
+            [6.00000000e+00, 1.72037148e+04, 1.87753845e+03],
+            [6.00000000e+00, 1.71025742e+04, 1.93199854e+03],
+            [6.00000000e+00, 1.70247734e+04, 1.96960181e+03],
+            [6.00000000e+00, 1.69275234e+04, 2.02017188e+03],
+            [6.00000000e+00, 1.68289766e+04, 2.04999536e+03],
+            [6.00000000e+00, 1.67226504e+04, 2.08500537e+03],
+            [6.00000000e+00, 1.66202129e+04, 2.07722534e+03],
+            [6.00000000e+00, 1.65268535e+04, 2.03313855e+03],
+            [6.00000000e+00, 1.64529434e+04, 2.00590857e+03],
+            [6.00000000e+00, 1.63647705e+04, 2.00720520e+03],
+            [6.00000000e+00, 1.62895635e+04, 1.93459180e+03],
+            [6.00000000e+00, 1.62765967e+04, 1.86068176e+03],
+            [6.00000000e+00, 1.62247305e+04, 1.83604504e+03],
+            [6.00000000e+00, 1.62364004e+04, 1.73490503e+03],
+            [6.00000000e+00, 1.63868145e+04, 1.74138831e+03],
+            [6.00000000e+00, 1.66357734e+04, 1.84771509e+03],
+            [6.00000000e+00, 1.70364434e+04, 1.72712500e+03],
+            [6.00000000e+00, 1.71181348e+04, 1.34849805e+03],
+            [6.00000000e+00, 1.71700000e+04, 1.06971448e+03],
+            [6.00000000e+00, 1.73670938e+04, 1.09564783e+03],
+            [6.00000000e+00, 1.73982148e+04, 1.19160132e+03],
+            [6.00000000e+00, 1.74008086e+04, 1.04507776e+03],
+            [6.00000000e+00, 1.73178203e+04, 9.54311096e+02],
+            [6.00000000e+00, 1.75175078e+04, 8.59654358e+02],
+            [6.00000000e+00, 1.76290215e+04, 9.38751038e+02],
+            [6.00000000e+00, 1.76329121e+04, 1.12158118e+03],
+            [6.00000000e+00, 1.75058379e+04, 1.18382129e+03],
+            [6.00000000e+00, 1.76458789e+04, 1.27199463e+03],
+            [6.00000000e+00, 1.76355039e+04, 1.48853821e+03],
+            [6.00000000e+00, 1.73826543e+04, 1.51576819e+03],
+            [6.00000000e+00, 1.73411602e+04, 1.38221143e+03],
+            [6.00000000e+00, 1.73178203e+04, 1.51706482e+03],
+            [6.00000000e+00, 1.73165234e+04, 1.70637830e+03],
+            [6.00000000e+00, 1.72568770e+04, 1.83085840e+03]
+        ])
+    )
+
+    worker.set_starting_hint("id_001", [   6.        , 4310.40854068,  800.9030318 ])
+    worker.set_starting_hint("id_002", [   6.        , 5289.57477442, 1539.68783768])
 
     worker.use_metric("Density", True)
     worker.use_metric("Integrated intensity", True)
@@ -898,6 +937,7 @@ def launch_analysis_workflow():
     worker.export_regions()
     worker.make_mask_and_skeleton()
     worker.make_medial_path()
+    return
     worker.make_measures()
     worker.make_plots()
 
@@ -950,6 +990,6 @@ def launch_recover_workflow():
 
 if __name__ == "__main__":
     # launch_synthetic_workflow()
-    # launch_analysis_workflow()
+    launch_analysis_workflow()
     # print("\n ============================ \n")
-    launch_recover_workflow()
+    # launch_recover_workflow()
