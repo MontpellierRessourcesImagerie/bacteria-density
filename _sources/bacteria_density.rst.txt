@@ -1,0 +1,24 @@
+bacteria\_density package
+=========================
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 4
+
+   bacteria_density.bd_worker
+   bacteria_density.graph
+   bacteria_density.measure
+   bacteria_density.plots
+   bacteria_density.process
+   bacteria_density.qt_workers
+   bacteria_density.utils
+
+Module contents
+---------------
+
+.. automodule:: bacteria_density
+   :members:
+   :undoc-members:
+   :show-inheritance:
