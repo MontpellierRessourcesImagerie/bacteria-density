@@ -37,17 +37,31 @@ Bacteria Density Analyzer: User's guide
     - 2: Green
     - 3: Blue
     - 4: Yellow
+- You must click on one of these buttons after drawing **each** polygon, it is not possible to change the color of a polygon that is not the last one.
 - Add a new "Points layer". In the "layers control" panel, switch to the "Add points" mode. Before placing the first point, you can increase the size of the points for better visibility.
 - For each filament (each color), add a point approximately where the filament starts. There should be exactly one point per color.
 - In the dropdown menus of the ROIs box of the plugin, provide the new shape and point layers.
 
+**Notes about drawing polygons:**
+
+- If some areas are folded on themselves, the polygon must pass where the separation should be.
+- If some debris are stuck to the object, the polygons should "shave" them off.
+- If you have darker areas longer than twice the kernel size, they should be in their own polygons.
+- Finish the polygons by a rounded or pointy end rather than a flat one to guide the medial path and make it create an angle.
+- A polygon should slightly overlap with the next to improve the continuity (if possible).
+- The segments of a polygon should not intersect with each other (different polygons can overlap, that's not a problem).
+- To connect the medial paths together, we look for the closest point in another polygon from the end of the filament in the current polygon. If you don't pay attention to that, the linking could be made with the wrong polygon or the wrong end of the filament.
+
 4. Settings
 ===========
 
-- Using the "Set output folder", provide the path to an empty directory.
+- Use the "Set output folder" button to provide the path to an empty directory.
 - Note: If you already completed an analysis and need to reload the results (for visualization only), you can use this same button and provide the path to the folder that you used for the desired analysis.
-- Select the binning length using the input below (binning of measures along the skeleton).
+- Select the binning length using the input below (binning of measures along the medial path).
 - Select the list of measurements that you would like to process.
+- A logarithm function is applied to intensities to reduce the dynamic range. The higher the "Log factor", the more the dynamic range is reduced. You can adjust it to get a better segmentation. If you have areas with a lot of contrast, you should increase it.
+- The threshold applied to the image is the mean of intensities in the polygon. To have a finer control on the segmentation, you can multiply this threshold by a factor. If you want to have a more inclusive segmentation, you should decrease it.
+- In an attempt to fill holes, a morphological closing is applied to the mask: the "Kernel size" is the size of the structuring element used for this closing. The bigger the holes, the bigger the kernel size should be. If you increase it too much, you will merge folded areas and details.
 
 5. Workflow
 ===========
@@ -66,7 +80,9 @@ Bacteria Density Analyzer: User's guide
 +-----------------------+------------------------------------------------------------------------------------+
 | Integrated volume     | Total volume taken by the voxels refering to this bin.                             |
 +-----------------------+------------------------------------------------------------------------------------+
-| Local width           | Local width measured along the skeleton.                                           |
+| Local width           | Local width measured along the medial path.                                        |
++-----------------------+------------------------------------------------------------------------------------+
+| Density               | Local density along the medial path: integrated intensity normalized by volume.    |
 +-----------------------+------------------------------------------------------------------------------------+
 
 6. Optional

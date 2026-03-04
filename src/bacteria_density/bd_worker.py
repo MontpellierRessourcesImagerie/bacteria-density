@@ -10,12 +10,14 @@ from skimage.filters import threshold_otsu
 from scipy.ndimage import (
     gaussian_filter,
     binary_fill_holes,
-    affine_transform
+    affine_transform,
+    median_filter
 )
 from skimage.morphology import (
     binary_closing, 
     ball,
     binary_opening, 
+    binary_erosion,
     skeletonize
 )
 import bacteria_density.utils as utils
@@ -370,7 +372,15 @@ class BacteriaDensityWorker(object):
                         return False
         return True
     
-    def _make_mask_and_skeleton(self, image, poly_mask, sigma=8.0, scale=0.5):
+    def _make_mask_and_skeleton(self, images, poly_mask, sigma=8.0, scale=0.5):
+        image = np.zeros_like(images[0], dtype=np.float32)
+        for img in images:
+            img = median_filter(img, size=3)
+            img = img.astype(np.float32)
+            img -= np.min(img)
+            img /= (np.max(img) + 1e-8)
+            image = np.maximum(image, img)
+        
         print("    Downscaling image...")
         original_shape = image.shape
         scale_matrix = np.array([
@@ -407,8 +417,8 @@ class BacteriaDensityWorker(object):
         smoothed = np.log(smoothed)
 
         print("    Thresholding...")
-        t = threshold_otsu(smoothed) * self.t_factor
-        # t = np.mean(smoothed) * self.t_factor
+        # t = threshold_otsu(smoothed) * self.t_factor
+        t = np.mean(smoothed) * self.t_factor
         mask = (smoothed >= t).astype(np.uint8)
 
         print("    Morphological closing...")
@@ -442,6 +452,10 @@ class BacteriaDensityWorker(object):
         poly_mask = (poly_mask > 0).astype(np.uint8)
         for i in range(largest.shape[0]):
             largest[i] *= poly_mask
+
+        print("    Applying an erosion to break bridges...")
+        k = ball(5)
+        largest = binary_erosion(largest, footprint=k)
         
         print("    Skeletonization...")
         skeleton = skeletonize(largest)
@@ -465,8 +479,18 @@ class BacteriaDensityWorker(object):
                     self.error(f"Poly mask file not found for region '{id_str}' bbox {bbox}")
                     continue
                 seg_crop = tiff.imread(seg_path)
+                # vvvv new vvvv
+                crops = []
+                for ch_name in self.measurement_ch.keys():
+                    ch_path = os.path.join(region_folder, f"{ch_name}.tif")
+                    if not os.path.isfile(ch_path):
+                        self.error(f"Measurement channel file '{ch_name}' not found for region '{id_str}' bbox {bbox}")
+                        continue
+                    ch_crop = tiff.imread(ch_path)
+                    crops.append(ch_crop)
+                # ^^^^ new ^^^^
                 poly_mask = tiff.imread(mask_path)
-                skeleton, mask = self._make_mask_and_skeleton(seg_crop, poly_mask)
+                skeleton, mask = self._make_mask_and_skeleton([seg_crop] + crops, poly_mask)
                 tiff.imwrite(os.path.join(region_folder, "mask.tif"), mask)
                 tiff.imwrite(os.path.join(region_folder, "skeleton.tif"), skeleton)
                 self.info(f"Generated mask and skeleton for region '{id_str}' bbox {bbox}")
@@ -733,24 +757,36 @@ class BacteriaDensityWorker(object):
     def recover(self):
         if self.working_dir is None:
             raise ValueError("Working directory not set")
+        print("Recovering images...")
         if not self.recover_images():
+            print("-- Failed to recover images.")
             return False
+        print("Recovering calibration...")
         if not self.recover_calibration():
+            print("-- Failed to recover calibration.")
             return False
+        print("Recovering regions...")
         if not self.recover_regions():
+            print("-- Failed to recover regions.")
             return False
+        print("Recovering metrics...")
         if not self.recover_metrics():
+            print("-- Failed to recover metrics.")
             return False
         if not self.are_regions_exported():
+            print("-- Regions were not exported or not found.")
             return False
         print("Exported regions detected.")
         if not self.are_skeletons_generated():
+            print("-- Skeletons were not generated.")
             return False
         print("Masks & skeletons detected.")
         if not self.are_medial_paths_generated():
+            print("-- Medial paths were not generated.")
             return False
         print("Medial paths detected.")
         if not self.are_measures_generated():
+            print("-- Measures were not generated.")
             return False
         print("Measurements detected.")
         return True

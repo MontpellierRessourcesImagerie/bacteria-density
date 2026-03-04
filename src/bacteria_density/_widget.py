@@ -147,7 +147,7 @@ class BacteriaDensityWidget(QWidget):
         self.sb_log_factor.setDecimals(1)
         self.sb_log_factor.setRange(1.0, 1000.0)
         self.sb_log_factor.setSingleStep(1.0)
-        self.sb_log_factor.setValue(150.0)
+        self.sb_log_factor.setValue(100.0)
         log_h_layout.addWidget(self.sb_log_factor)
         set_v.addLayout(log_h_layout)
 
@@ -158,7 +158,7 @@ class BacteriaDensityWidget(QWidget):
         self.sb_threshold_factor.setDecimals(2)
         self.sb_threshold_factor.setRange(0.01, 10.0)
         self.sb_threshold_factor.setSingleStep(0.01)
-        self.sb_threshold_factor.setValue(0.7)
+        self.sb_threshold_factor.setValue(1.0)
         mask_factor_h_layout.addWidget(self.sb_threshold_factor)
         set_v.addLayout(mask_factor_h_layout)
 
@@ -692,8 +692,8 @@ class BacteriaDensityWidget(QWidget):
         self.selected_folder = path
         self.model = BacteriaDensityWorker()
         self.model.set_working_dir(path)
-        if self.model.recover():
-            self.recover_ui_from_model()
+        self.model.recover()
+        self.recover_ui_from_model()
 
     # ---------------- PUBLIC ACCESSORS ----------------
 
